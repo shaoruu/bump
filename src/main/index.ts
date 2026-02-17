@@ -195,6 +195,17 @@ app.whenReady().then(() => {
     if (win) win.setFullScreen(!win.isFullScreen());
   });
 
+  ipcMain.handle("window:is-fullscreen", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return win ? win.isFullScreen() : false;
+  });
+
+  ipcMain.handle("window:toggle-devtools", (event) => {
+    const wc = event.sender;
+    if (wc.isDevToolsOpened()) wc.closeDevTools();
+    else wc.openDevTools();
+  });
+
   ipcMain.handle("shell:open-external", (_event, url: string) => {
     if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("mailto:")) {
       return shell.openExternal(url);

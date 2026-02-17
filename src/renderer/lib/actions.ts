@@ -393,6 +393,18 @@ export function registerCoreActions(
   });
 
   registerAction({
+    id: "window.devtools",
+    label: "Toggle Developer Tools",
+    shortcut: "Cmd+Alt+I",
+    keywords: ["devtools", "developer", "inspect", "console", "debug"],
+    icon: "code",
+    category: "general",
+    execute: () => {
+      window.bump.toggleDevTools();
+    },
+  });
+
+  registerAction({
     id: "terminal.focus-left",
     label: "Focus Pane Left",
     shortcut: "Cmd+Alt+ArrowLeft",

@@ -102,6 +102,10 @@ const bump: BumpAPI = {
 
   toggleFullscreen: () => ipcRenderer.invoke("window:toggle-fullscreen"),
 
+  isFullscreen: () => ipcRenderer.invoke("window:is-fullscreen") as Promise<boolean>,
+
+  toggleDevTools: () => ipcRenderer.invoke("window:toggle-devtools"),
+
   openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
 
   onClosePane: (cb: () => void) => {

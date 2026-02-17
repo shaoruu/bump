@@ -232,8 +232,10 @@ export class CanvasRenderer {
     const ascent = widthMetrics.actualBoundingBoxAscent || this.fontSize * 0.8;
     const descent = widthMetrics.actualBoundingBoxDescent || this.fontSize * 0.2;
 
-    const height = Math.ceil(ascent + descent);
-    const baseline = Math.ceil(ascent);
+    const naturalHeight = ascent + descent;
+    const height = Math.ceil(naturalHeight * 1.1);
+    const padding = (height - naturalHeight) / 2;
+    const baseline = Math.ceil(ascent + padding);
 
     return { width, height, baseline };
   }

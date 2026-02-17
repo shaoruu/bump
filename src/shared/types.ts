@@ -139,6 +139,8 @@ export interface BumpAPI {
 
   closeWindow: () => Promise<void>;
   toggleFullscreen: () => Promise<void>;
+  isFullscreen: () => Promise<boolean>;
+  toggleDevTools: () => Promise<void>;
   openExternal: (url: string) => Promise<void>;
   onClosePane: (cb: () => void) => () => void;
   onMenuPaste: (cb: () => void) => () => void;

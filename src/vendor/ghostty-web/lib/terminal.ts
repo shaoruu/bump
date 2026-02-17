@@ -587,6 +587,7 @@ export class Terminal implements ITerminalCore {
     // This is a simplified implementation - Ghostty WASM may provide this
     if (typeof data === 'string' && data.includes('\x1b]')) {
       this.checkForTitleChange(data);
+      this.respondToOsc11Query(data);
     }
 
     // Call callback if provided
@@ -1795,10 +1796,24 @@ export class Terminal implements ITerminalCore {
     }
   }
 
-  /**
-   * Check for title changes in written data (OSC sequences)
-   * Simplified implementation - looks for OSC 0, 1, 2
-   */
+  private respondToOsc11Query(data: string): void {
+    if (!data.includes('\x1b]11;?')) return;
+
+    const osc11Regex = /\x1b\]11;\?(?:\x07|\x1b\\)/g;
+    if (!osc11Regex.test(data)) return;
+
+    const bgHex = this.parseColorToHex(this.options.theme?.background);
+    const r = (bgHex >> 16) & 0xff;
+    const g = (bgHex >> 8) & 0xff;
+    const b = bgHex & 0xff;
+
+    const rr = r.toString(16).padStart(2, '0').repeat(2);
+    const gg = g.toString(16).padStart(2, '0').repeat(2);
+    const bb = b.toString(16).padStart(2, '0').repeat(2);
+
+    this.dataEmitter.fire(`\x1b]11;rgb:${rr}/${gg}/${bb}\x07`);
+  }
+
   private checkForTitleChange(data: string): void {
     // OSC sequences: ESC ] Ps ; Pt BEL or ESC ] Ps ; Pt ST
     // OSC 0 = icon + title, OSC 1 = icon, OSC 2 = title

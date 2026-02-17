@@ -84,7 +84,9 @@ export class Ghostty {
             ptr,
             len
           );
-          console.log('[ghostty-vt]', new TextDecoder().decode(bytes));
+          const msg = new TextDecoder().decode(bytes);
+          if (msg.includes('OSC 11') || msg.includes('osc): OSC 11')) return;
+          console.log('[ghostty-vt]', msg);
         },
       },
     });

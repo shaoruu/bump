@@ -553,22 +553,24 @@ export class SelectionManager {
     };
     document.addEventListener('mouseup', this.boundMouseUpHandler);
 
-    // Double-click - select word
-    canvas.addEventListener('dblclick', (e: MouseEvent) => {
-      const cell = this.pixelToCell(e.offsetX, e.offsetY);
-      const word = this.getWordAtCell(cell.col, cell.row);
-
-      if (word) {
-        const absoluteRow = this.viewportRowToAbsolute(cell.row);
-        this.selectionStart = { col: word.startCol, absoluteRow };
-        this.selectionEnd = { col: word.endCol, absoluteRow };
-        this.requestRender();
-        this.selectionChangedEmitter.fire();
+    canvas.addEventListener('click', (e: MouseEvent) => {
+      if (e.detail === 2) {
+        const cell = this.pixelToCell(e.offsetX, e.offsetY);
+        this.selectWordAt(cell.col, cell.row);
+      } else if (e.detail === 3) {
+        const cell = this.pixelToCell(e.offsetX, e.offsetY);
+        this.selectLineAt(cell.row);
       }
     });
 
     this.boundContextMenuHandler = (e: MouseEvent) => {
       e.preventDefault();
+      
+      if (!this.hasSelection()) {
+        const cell = this.pixelToCell(e.offsetX, e.offsetY);
+        this.selectWordAt(cell.col, cell.row);
+      }
+      
       const canvas = this.renderer.getCanvas();
       canvas.dispatchEvent(new CustomEvent("terminal-context-menu", {
         bubbles: true,
@@ -760,36 +762,100 @@ export class SelectionManager {
     return { startCol, startRow, endCol, endRow };
   }
 
-  /**
-   * Get word boundaries at a cell position
-   */
-  private getWordAtCell(col: number, row: number): { startCol: number; endCol: number } | null {
+  private selectWordAt(col: number, row: number): void {
+    const range = this.getSemanticRangeAt(col, row);
+    if (range) {
+      const absoluteRow = this.viewportRowToAbsolute(row);
+      this.selectionStart = { col: range.startCol, absoluteRow };
+      this.selectionEnd = { col: range.endCol, absoluteRow };
+      this.requestRender();
+      this.selectionChangedEmitter.fire();
+    }
+  }
+
+  private selectLineAt(row: number): void {
+    const line = this.wasmTerm.getLine(row);
+    if (!line) return;
+
+    let startCol = 0;
+    let endCol = line.length - 1;
+
+    while (endCol > 0) {
+      const cell = line[endCol];
+      if (cell && cell.codepoint !== 0 && cell.codepoint !== 32) break;
+      endCol--;
+    }
+
+    const absoluteRow = this.viewportRowToAbsolute(row);
+    this.selectionStart = { col: startCol, absoluteRow };
+    this.selectionEnd = { col: endCol, absoluteRow };
+    this.requestRender();
+    this.selectionChangedEmitter.fire();
+  }
+
+  private getSemanticRangeAt(col: number, row: number): { startCol: number; endCol: number } | null {
     const line = this.wasmTerm.getLine(row);
     if (!line) return null;
 
-    // Word characters: letters, numbers, underscore, dash
-    const isWordChar = (cell: GhosttyCell) => {
-      if (!cell || cell.codepoint === 0) return false;
-      const char = String.fromCodePoint(cell.codepoint);
-      return /[\w-]/.test(char);
+    const getChar = (c: number): string => {
+      const cell = line[c];
+      if (!cell || cell.codepoint === 0) return ' ';
+      return String.fromCodePoint(cell.codepoint);
     };
 
-    // Only return if we're actually on a word character
-    if (!isWordChar(line[col])) return null;
+    const clickedChar = getChar(col);
 
-    // Find start of word
-    let startCol = col;
-    while (startCol > 0 && isWordChar(line[startCol - 1])) {
-      startCol--;
+    if (clickedChar === ' ') return null;
+
+    const quotePairs: Record<string, string> = { '"': '"', "'": "'", '`': '`', '(': ')', '[': ']', '{': '}', '<': '>' };
+    if (quotePairs[clickedChar]) {
+      const closeChar = quotePairs[clickedChar];
+      let endCol = col + 1;
+      while (endCol < line.length && getChar(endCol) !== closeChar) {
+        endCol++;
+      }
+      if (endCol < line.length) {
+        return { startCol: col, endCol };
+      }
     }
 
-    // Find end of word
-    let endCol = col;
-    while (endCol < line.length - 1 && isWordChar(line[endCol + 1])) {
-      endCol++;
+    const closeToOpen: Record<string, string> = { '"': '"', "'": "'", '`': '`', ')': '(', ']': '[', '}': '{', '>': '<' };
+    if (closeToOpen[clickedChar]) {
+      const openChar = closeToOpen[clickedChar];
+      let startCol = col - 1;
+      while (startCol >= 0 && getChar(startCol) !== openChar) {
+        startCol--;
+      }
+      if (startCol >= 0) {
+        return { startCol, endCol: col };
+      }
     }
 
-    return { startCol, endCol };
+    const pathUrlChars = /[a-zA-Z0-9_.~\/:@!$&'()*+,;=?#%[\]-]/;
+    if (pathUrlChars.test(clickedChar)) {
+      let startCol = col;
+      let endCol = col;
+
+      while (startCol > 0 && pathUrlChars.test(getChar(startCol - 1))) {
+        startCol--;
+      }
+      while (endCol < line.length - 1 && pathUrlChars.test(getChar(endCol + 1))) {
+        endCol++;
+      }
+
+      while (endCol > startCol) {
+        const c = getChar(endCol);
+        if (/[.,;:!?)}\]>]/.test(c)) {
+          endCol--;
+        } else {
+          break;
+        }
+      }
+
+      return { startCol, endCol };
+    }
+
+    return null;
   }
 
   private copyToClipboard(text: string): void {

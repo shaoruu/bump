@@ -80,6 +80,7 @@ export function TabBar() {
   const weather = useWeather();
 
   useEffect(() => {
+    window.bump.isFullscreen().then(setIsFullscreen);
     return window.bump.onFullscreenChange(setIsFullscreen);
   }, []);
 

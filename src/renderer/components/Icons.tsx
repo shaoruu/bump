@@ -131,6 +131,46 @@ export function CommandIcon({ size = 14, className }: IconProps) {
   );
 }
 
+export function ArrowRightIcon({ size = 14, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path fillRule="evenodd" clipRule="evenodd" d="M4 11H16V9H18V11H20V13H18V15H16V13H4V11Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function ArrowLeftIcon({ size = 14, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path fillRule="evenodd" clipRule="evenodd" d="M20 11H8V9H6V11H4V13H6V15H8V13H20V11Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function ArrowUpIcon({ size = 14, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path fillRule="evenodd" clipRule="evenodd" d="M13 20H11V8H9V6H11V4H13V6H15V8H13V20Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function ArrowDownIcon({ size = 14, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path fillRule="evenodd" clipRule="evenodd" d="M11 4H13V16H15V18H13V20H11V18H9V16H11V4Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function MinusIcon({ size = 14, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path fillRule="evenodd" clipRule="evenodd" d="M4 11H20V13H4V11Z" fill="currentColor" />
+    </svg>
+  );
+}
+
 export type IconName =
   | "copy"
   | "zap"
@@ -139,12 +179,17 @@ export type IconName =
   | "split-horizontal"
   | "split-vertical"
   | "plus"
+  | "minus"
   | "x"
   | "refresh"
   | "palette"
   | "edit"
   | "chevron-right"
   | "chevron-left"
+  | "arrow-left"
+  | "arrow-right"
+  | "arrow-up"
+  | "arrow-down"
   | "trash"
   | "maximize"
   | "command";
@@ -157,12 +202,17 @@ const iconMap: Record<IconName, React.ComponentType<IconProps>> = {
   "split-horizontal": SplitHorizontalIcon,
   "split-vertical": SplitVerticalIcon,
   "plus": PlusIcon,
+  "minus": MinusIcon,
   "x": CloseIcon,
   "refresh": RefreshIcon,
   "palette": PaletteIcon,
   "edit": EditIcon,
   "chevron-right": ChevronRightIcon,
   "chevron-left": ChevronLeftIcon,
+  "arrow-left": ArrowLeftIcon,
+  "arrow-right": ArrowRightIcon,
+  "arrow-up": ArrowUpIcon,
+  "arrow-down": ArrowDownIcon,
   "trash": TrashIcon,
   "maximize": MaximizeIcon,
   "command": CommandIcon,
@@ -170,5 +220,6 @@ const iconMap: Record<IconName, React.ComponentType<IconProps>> = {
 
 export function Icon({ name, size = 14, className }: IconProps & { name: IconName }) {
   const IconComponent = iconMap[name];
+  if (!IconComponent) return null;
   return <IconComponent size={size} className={className} />;
 }
