@@ -42,7 +42,6 @@ export function App() {
     registerCoreActions(openPalette, openThemePicker);
   }, [openPalette, openThemePicker]);
 
-
   useEffect(() => {
     window.bump.checkAuth().then((status) => {
       setAuth(status.authenticated, status.email);
@@ -173,7 +172,12 @@ export function App() {
       </div>
       {mode === "agent" && <InputBar />}
       <PermissionModal />
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      {paletteOpen && (
+        <CommandPalette
+          initialMode={paletteMode}
+          onClose={() => setPaletteOpen(false)}
+        />
+      )}
       {promptDialog && (
         <PromptDialog
           open

@@ -229,14 +229,11 @@ export class CanvasRenderer {
     const widthMetrics = ctx.measureText('M');
     const width = Math.ceil(widthMetrics.width);
 
-    // Measure height using ascent + descent with padding for glyph overflow
     const ascent = widthMetrics.actualBoundingBoxAscent || this.fontSize * 0.8;
     const descent = widthMetrics.actualBoundingBoxDescent || this.fontSize * 0.2;
 
-    // Add 2px padding to height to account for glyphs that overflow (like 'f', 'd', 'g', 'p')
-    // and anti-aliasing pixels
-    const height = Math.ceil(ascent + descent) + 2;
-    const baseline = Math.ceil(ascent) + 1; // Offset baseline by half the padding
+    const height = Math.ceil(ascent + descent);
+    const baseline = Math.ceil(ascent);
 
     return { width, height, baseline };
   }
@@ -848,13 +845,12 @@ export class CanvasRenderer {
 
     // Scrollbar dimensions
     const scrollbarWidth = 8;
-    const scrollbarX = canvasWidth - scrollbarWidth - 4;
+    const scrollbarX = canvasWidth - scrollbarWidth;
     const scrollbarPadding = 4;
     const scrollbarTrackHeight = canvasHeight - scrollbarPadding * 2;
 
-    // Always clear the scrollbar area first (fixes ghosting when fading out)
     ctx.fillStyle = this.theme.background;
-    ctx.fillRect(scrollbarX - 2, 0, scrollbarWidth + 6, canvasHeight);
+    ctx.fillRect(scrollbarX - 2, 0, scrollbarWidth + 2, canvasHeight);
 
     // Don't draw scrollbar if fully transparent or no scrollback
     if (opacity <= 0 || scrollbackLength === 0) return;

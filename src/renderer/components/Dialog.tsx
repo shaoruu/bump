@@ -53,11 +53,8 @@ export function PromptDialog({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) {
-      setValue(defaultValue);
-      requestAnimationFrame(() => inputRef.current?.select());
-    }
-  }, [open, defaultValue]);
+    requestAnimationFrame(() => inputRef.current?.select());
+  }, []);
 
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim();

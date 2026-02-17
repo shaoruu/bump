@@ -42,32 +42,34 @@ function restoreThemeSnapshot(snapshot: ThemeSnapshot) {
   }
 }
 
+let themesCache: GhosttyTheme[] = [];
+
 interface CommandPaletteProps {
-  open: boolean;
+  initialMode?: "actions" | "themes";
   onClose: () => void;
 }
 
-export function CommandPalette({ open, onClose }: CommandPaletteProps) {
-  const [mode, setMode] = useState<"actions" | "themes">("actions");
-  const [themes, setThemes] = useState<GhosttyTheme[]>([]);
+export function CommandPalette({ initialMode = "actions", onClose }: CommandPaletteProps) {
+  const [mode, setMode] = useState(initialMode);
+  const [themes, setThemes] = useState(themesCache);
   const [search, setSearch] = useState("");
-  const [highlightedValue, setHighlightedValue] = useState("");
+  const [highlightedValue, setHighlightedValue] = useState(
+    initialMode === "themes" ? useAppStore.getState().themeName : ""
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const snapshotRef = useRef<ThemeSnapshot | null>(null);
 
   useEffect(() => {
-    if (open) {
-      setMode("actions");
-      setSearch("");
-      setHighlightedValue("");
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
-  }, [open]);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
 
   useEffect(() => {
     if (mode === "themes") {
       if (themes.length === 0) {
-        window.bump.listThemes().then(setThemes);
+        window.bump.listThemes().then((loaded) => {
+          themesCache = loaded;
+          setThemes(loaded);
+        });
       }
       snapshotRef.current = captureThemeSnapshot();
     }
@@ -102,7 +104,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       if (action.id === "theme.change") {
         setMode("themes");
         setSearch("");
-        setHighlightedValue("");
+        setHighlightedValue(useAppStore.getState().themeName);
         return;
       }
       handleClose();
@@ -133,8 +135,6 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     },
     [mode, themes]
   );
-
-  if (!open) return null;
 
   return (
     <div

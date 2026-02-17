@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import { join } from "node:path";
 import { setupIpcHandlers, cleanupAgent } from "./ipc-handlers.js";
 import { closeAllTerminals } from "./pty-manager.js";
@@ -8,6 +8,7 @@ app.commandLine.appendSwitch("enable-zero-copy");
 app.commandLine.appendSwitch("ignore-gpu-blocklist");
 
 let mainWindow: BrowserWindow | null = null;
+let quitConfirmed = false;
 
 function createApplicationMenu(): void {
   const template: Electron.MenuItemConstructorOptions[] = [
@@ -153,7 +154,25 @@ app.on("window-all-closed", async () => {
   }
 });
 
-app.on("before-quit", async () => {
-  closeAllTerminals();
-  await cleanupAgent();
+app.on("before-quit", async (event) => {
+  if (quitConfirmed) {
+    closeAllTerminals();
+    await cleanupAgent();
+    return;
+  }
+
+  event.preventDefault();
+
+  const { response } = await dialog.showMessageBox({
+    type: "question",
+    buttons: ["Cancel", "Quit"],
+    defaultId: 1,
+    cancelId: 0,
+    message: "Are you sure you want to quit?",
+  });
+
+  if (response === 1) {
+    quitConfirmed = true;
+    app.quit();
+  }
 });

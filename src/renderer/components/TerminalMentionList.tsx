@@ -18,9 +18,14 @@ export interface TerminalMentionListHandle {
 export const TerminalMentionList = forwardRef<TerminalMentionListHandle, TerminalMentionListProps>(
   function TerminalMentionList({ items, command }, ref) {
     const [selectedIndex, setSelectedIndex] = useState(0);
+    const [prevItems, setPrevItems] = useState(items);
     const selectedRef = useRef<HTMLButtonElement>(null);
 
-    useEffect(() => { setSelectedIndex(0); }, [items]);
+    if (items !== prevItems) {
+      setPrevItems(items);
+      setSelectedIndex(0);
+    }
+
     useEffect(() => { selectedRef.current?.scrollIntoView({ block: "nearest" }); }, [selectedIndex]);
 
     const selectItem = useCallback((index: number) => {
