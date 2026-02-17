@@ -5,6 +5,7 @@ import {
   writeTerminal,
   resizeTerminal,
   closeTerminal,
+  closeAllTerminals,
   getTerminalBuffer,
   getTerminalCwd,
   getAllTerminalLogPaths,
@@ -71,6 +72,10 @@ export function setupIpcHandlers(
 
   ipcMain.handle("terminal:close", async (_event, id: string) => {
     closeTerminal(id);
+  });
+
+  ipcMain.handle("terminal:close-all", async () => {
+    closeAllTerminals();
   });
 
   ipcMain.handle("terminal:buffer", async (_event, id: string) => {

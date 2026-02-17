@@ -18,6 +18,7 @@ const bump: BumpAPI = {
     ipcRenderer.invoke("terminal:resize", id, cols, rows),
 
   closeTerminal: (id: string) => ipcRenderer.invoke("terminal:close", id),
+  closeAllTerminals: () => ipcRenderer.invoke("terminal:close-all"),
 
   onTerminalData: (id: string, cb: (data: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: string) =>

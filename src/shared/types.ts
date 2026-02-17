@@ -106,6 +106,7 @@ export interface BumpAPI {
   writeTerminal: (id: string, data: string) => Promise<void>;
   resizeTerminal: (id: string, cols: number, rows: number) => Promise<void>;
   closeTerminal: (id: string) => Promise<void>;
+  closeAllTerminals: () => Promise<void>;
   onTerminalData: (id: string, cb: (data: string) => void) => () => void;
   onTerminalExit: (id: string, cb: (exitCode: number) => void) => () => void;
 

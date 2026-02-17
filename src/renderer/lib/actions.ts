@@ -142,7 +142,8 @@ export function registerCoreActions(
     label: "Reload Window",
     keywords: ["refresh", "restart"],
     category: "general",
-    execute: () => {
+    execute: async () => {
+      await window.bump.closeAllTerminals();
       window.location.reload();
     },
   });

@@ -6,6 +6,32 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
+function getDescendants(pid: number): number[] {
+  try {
+    const out = execFileSync("pgrep", ["-P", String(pid)], {
+      encoding: "utf-8",
+      timeout: 2000,
+    });
+    const children = out
+      .split("\n")
+      .map((l) => parseInt(l, 10))
+      .filter((n) => !isNaN(n));
+    return children.flatMap((c) => [...getDescendants(c), c]);
+  } catch {
+    return [];
+  }
+}
+
+function killProcessTree(pid: number): void {
+  const pids = [...getDescendants(pid), pid];
+  for (const p of pids) {
+    try { process.kill(p, "SIGTERM"); } catch {}
+  }
+  for (const p of pids) {
+    try { process.kill(p, "SIGKILL"); } catch {}
+  }
+}
+
 let pty: typeof PtyType | null = null;
 
 async function getPty(): Promise<typeof PtyType> {
@@ -39,6 +65,12 @@ interface ManagedTerminal {
 
 const terminals = new Map<string, ManagedTerminal>();
 let terminalCounter = 0;
+
+function releaseFiles(terminal: ManagedTerminal): void {
+  terminal.logStream.end();
+  try { unlinkSync(terminal.logPath); } catch {}
+  try { unlinkSync(terminal.metaPath); } catch {}
+}
 
 function getShell(): string {
   if (process.platform === "win32") return "powershell.exe";
@@ -121,7 +153,11 @@ export async function createTerminal(
   });
 
   ptyProcess.onExit(({ exitCode }) => {
-    terminals.delete(id);
+    const t = terminals.get(id);
+    if (t) {
+      releaseFiles(t);
+      terminals.delete(id);
+    }
     if (!mainWindow.isDestroyed()) {
       mainWindow.webContents.send(`terminal:exit:${id}`, exitCode);
     }
@@ -140,13 +176,11 @@ export function resizeTerminal(id: string, cols: number, rows: number): void {
 
 export function closeTerminal(id: string): void {
   const terminal = terminals.get(id);
-  if (terminal) {
-    terminal.logStream.end();
-    terminal.pty.kill();
-    try { unlinkSync(terminal.logPath); } catch {}
-    try { unlinkSync(terminal.metaPath); } catch {}
-    terminals.delete(id);
-  }
+  if (!terminal) return;
+  killProcessTree(terminal.pty.pid);
+  terminal.pty.kill();
+  releaseFiles(terminal);
+  terminals.delete(id);
 }
 
 export function getTerminalLogPath(id: string): string | null {
@@ -204,11 +238,7 @@ export function getAllTerminalLogPaths(): { id: string; logPath: string; metaPat
 }
 
 export function closeAllTerminals(): void {
-  for (const [, terminal] of terminals) {
-    terminal.logStream.end();
-    terminal.pty.kill();
-    try { unlinkSync(terminal.logPath); } catch {}
-    try { unlinkSync(terminal.metaPath); } catch {}
+  for (const id of Array.from(terminals.keys())) {
+    closeTerminal(id);
   }
-  terminals.clear();
 }
