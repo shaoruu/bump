@@ -126,6 +126,8 @@ interface AppState {
 
   themeName: string;
   setThemeName: (name: string) => void;
+  themeVersion: number;
+  bumpThemeVersion: () => void;
 }
 
 let paneCounter = 0;
@@ -646,6 +648,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   themeName: getThemeCache()?.name ?? "Default",
   setThemeName: (name) => set({ themeName: name }),
+  themeVersion: 0,
+  bumpThemeVersion: () => set((s) => ({ themeVersion: s.themeVersion + 1 })),
 }));
 
 export type { PaneNode, SplitNode, LeafNode, SplitDirection, Pane, Chat, Workspace };

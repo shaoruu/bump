@@ -3,7 +3,7 @@ const THEME_CACHE_KEY = "bump:theme-cache";
 export interface ThemeCache {
   name: string;
   cssVars: Record<string, string>;
-  xtermTheme: Record<string, string>;
+  terminalTheme: Record<string, string>;
 }
 
 export function getThemeCache(): ThemeCache | null {

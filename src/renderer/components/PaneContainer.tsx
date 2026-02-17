@@ -87,6 +87,8 @@ function PaneSlot({ paneId }: { paneId: string }) {
   const enterCountRef = useRef(0);
   const dropZoneRef = useRef<DropZone | null>(null);
 
+  const themeVersion = useAppStore((s) => s.themeVersion);
+
   useEffect(() => {
     const slot = slotRef.current;
     if (!slot) return;
@@ -112,12 +114,19 @@ function PaneSlot({ paneId }: { paneId: string }) {
 
     slot.appendChild(entry.container);
 
+    if (entry.terminal?.wasmTerm && entry.terminal.renderer) {
+      const renderer = entry.terminal.renderer;
+      (renderer as { render: Function }).render(
+        entry.terminal.wasmTerm, true, entry.terminal.viewportY, entry.terminal
+      );
+    }
+
     return () => {
       if (entry.container.parentNode === slot) {
         slot.removeChild(entry.container);
       }
     };
-  }, [paneId, setTerminalId]);
+  }, [paneId, setTerminalId, themeVersion]);
 
   useEffect(() => {
     if (isActive) {

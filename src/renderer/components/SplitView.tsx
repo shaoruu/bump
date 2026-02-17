@@ -76,6 +76,7 @@ export function SplitView({
           active:bg-accent/40
           transition-colors
         `}
+        onDoubleClick={() => updateSplitSizes(splitId, [50, 50])}
       >
         <div
           className={`

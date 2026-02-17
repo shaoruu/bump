@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { getActions, getRecentActionIds, recordRecentAction } from "../lib/actions.js";
 import type { Action } from "../lib/actions.js";
 import type { GhosttyTheme } from "../../shared/types.js";
+
 import { terminalRegistry } from "./TerminalRegistry.js";
 import { useAppStore } from "../store/appStore.js";
 import { setThemeCache } from "../lib/theme-cache.js";
@@ -313,7 +314,7 @@ function ThemeList({
   );
 }
 
-function buildXtermTheme(theme: GhosttyTheme): Record<string, string> {
+function buildTerminalTheme(theme: GhosttyTheme): Record<string, string> {
   return {
     background: theme.background,
     foreground: theme.foreground,
@@ -359,7 +360,7 @@ function applyCssVars(vars: Record<string, string>) {
 }
 
 function applyThemeVisuals(theme: GhosttyTheme) {
-  terminalRegistry.setTheme(buildXtermTheme(theme));
+  terminalRegistry.setTheme(buildTerminalTheme(theme));
   applyCssVars(buildCssVars(theme));
 }
 
@@ -370,7 +371,7 @@ function applyTheme(theme: GhosttyTheme) {
   setThemeCache({
     name: theme.name,
     cssVars: buildCssVars(theme),
-    xtermTheme: buildXtermTheme(theme),
+    terminalTheme: buildTerminalTheme(theme),
   });
 }
 

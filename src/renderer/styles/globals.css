@@ -78,10 +78,10 @@ body {
   -webkit-app-region: no-drag;
 }
 
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible {
-  outline: none;
+*:focus,
+*:focus-visible,
+*:focus-within {
+  outline: none !important;
 }
 
 * {

@@ -1,4 +1,7 @@
-import "@xterm/xterm/css/xterm.css";
+import { init, Terminal, FitAddon } from "../../vendor/ghostty-web/lib/index.js";
+import type { CanvasRenderer } from "../../vendor/ghostty-web/lib/renderer.js";
+import { useAppStore } from "../store/appStore.js";
+
 
 const terminalTheme = {
   background: "#0a0a0a",
@@ -24,28 +27,13 @@ const terminalTheme = {
   brightWhite: "#ffffff",
 };
 
-let xtermModules: {
-  Terminal: typeof import("@xterm/xterm").Terminal;
-  FitAddon: typeof import("@xterm/addon-fit").FitAddon;
-  WebLinksAddon: typeof import("@xterm/addon-web-links").WebLinksAddon;
-  WebglAddon: typeof import("@xterm/addon-webgl").WebglAddon;
-} | null = null;
+let ghosttyReady: Promise<void> | null = null;
 
-async function loadXtermModules() {
-  if (xtermModules) return xtermModules;
-  const [xtermModule, fitModule, webLinksModule, webglModule] = await Promise.all([
-    import("@xterm/xterm"),
-    import("@xterm/addon-fit"),
-    import("@xterm/addon-web-links"),
-    import("@xterm/addon-webgl"),
-  ]);
-  xtermModules = {
-    Terminal: xtermModule.Terminal,
-    FitAddon: fitModule.FitAddon,
-    WebLinksAddon: webLinksModule.WebLinksAddon,
-    WebglAddon: webglModule.WebglAddon,
-  };
-  return xtermModules;
+function ensureGhosttyInit(): Promise<void> {
+  if (!ghosttyReady) {
+    ghosttyReady = init();
+  }
+  return ghosttyReady;
 }
 
 interface TerminalCallbacks {
@@ -55,7 +43,7 @@ interface TerminalCallbacks {
 
 interface TerminalEntry {
   container: HTMLDivElement;
-  terminal: import("@xterm/xterm").Terminal | null;
+  terminal: Terminal | null;
   terminalId: string | null;
   cleanup: (() => void) | null;
   callbacks: TerminalCallbacks;
@@ -65,7 +53,7 @@ import { getThemeCache } from "../lib/theme-cache.js";
 
 class TerminalRegistry {
   private entries = new Map<string, TerminalEntry>();
-  private currentTheme: Record<string, string> | null = getThemeCache()?.xtermTheme ?? null;
+  private currentTheme: Record<string, string> | null = getThemeCache()?.terminalTheme ?? null;
 
   getOrCreate(paneId: string, callbacks: TerminalCallbacks, cwd?: string): TerminalEntry {
     const existing = this.entries.get(paneId);
@@ -74,8 +62,9 @@ class TerminalRegistry {
     const container = document.createElement("div");
     container.style.width = "100%";
     container.style.height = "100%";
-    container.style.background = "#0a0a0a";
-    container.style.padding = "2px";
+    container.style.background = this.currentTheme?.background ?? "#0a0a0a";
+    container.style.position = "relative";
+    container.style.overflow = "hidden";
 
     const entry: TerminalEntry = {
       container,
@@ -97,8 +86,9 @@ class TerminalRegistry {
 
     entry.cleanup?.();
 
-    const xterm = entry.container.querySelector(".xterm");
-    if (xterm) xterm.remove();
+    while (entry.container.firstChild) {
+      entry.container.firstChild.remove();
+    }
 
     entry.terminalId = null;
     entry.cleanup = null;
@@ -107,47 +97,35 @@ class TerminalRegistry {
   }
 
   private async initTerminal(paneId: string, entry: TerminalEntry, cwd?: string) {
-    const modules = await loadXtermModules();
-    const { Terminal, FitAddon, WebLinksAddon, WebglAddon } = modules;
+    await ensureGhosttyInit();
+
+    const theme = this.currentTheme ?? terminalTheme;
 
     const terminal = new Terminal({
-      cursorBlink: true,
+      cursorBlink: false,
       fontFamily:
         '"Berkeley Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
       fontSize: 13,
-      lineHeight: 1.0,
-      theme: terminalTheme,
+      theme,
     });
 
     const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon();
     terminal.loadAddon(fitAddon);
-    terminal.loadAddon(webLinksAddon);
 
     terminal.attachCustomKeyEventHandler((e) => {
-      if (e.metaKey && e.key === "d") return false;
-      if (e.metaKey && e.key === "w") return false;
-      if (e.metaKey && e.key === "i") return false;
-      if (e.metaKey && e.key === "p") return false;
-      if (e.metaKey && e.key === "n") return false;
-      if (e.metaKey && e.key === "t") return false;
-      if (e.metaKey && e.key === "k") return false;
-      if (e.metaKey && e.key >= "1" && e.key <= "9") return false;
-      return true;
+      if (e.metaKey && e.key === "d") return true;
+      if (e.metaKey && e.key === "w") return true;
+      if (e.metaKey && e.key === "i") return true;
+      if (e.metaKey && e.key === "p") return true;
+      if (e.metaKey && e.key === "n") return true;
+      if (e.metaKey && e.key === "t") return true;
+      if (e.metaKey && e.key === "k") return true;
+      if (e.metaKey && e.key >= "1" && e.key <= "9") return true;
+      return false;
     });
 
     entry.terminal = terminal;
     terminal.open(entry.container);
-
-    try {
-      const webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => {
-        webglAddon.dispose();
-      });
-      terminal.loadAddon(webglAddon);
-    } catch {
-      // fall back to DOM renderer
-    }
 
     requestAnimationFrame(() => {
       fitAddon.fit();
@@ -215,11 +193,6 @@ class TerminalRegistry {
     });
     resizeObserver.observe(entry.container);
 
-    if (this.currentTheme) {
-      terminal.options.theme = this.currentTheme;
-      entry.container.style.background = this.currentTheme.background || "#0a0a0a";
-    }
-
     terminal.focus();
 
     entry.cleanup = () => {
@@ -251,13 +224,17 @@ class TerminalRegistry {
   setTheme(theme: Record<string, string>) {
     for (const [, entry] of this.entries) {
       if (entry.terminal) {
-        entry.terminal.options.theme = theme;
+        const renderer = entry.terminal.renderer as CanvasRenderer | undefined;
+        if (renderer) {
+          renderer.setTheme(theme);
+        }
       }
       if (theme.background) {
         entry.container.style.background = theme.background;
       }
     }
     this.currentTheme = theme;
+    useAppStore.getState().bumpThemeVersion();
   }
 
   getCurrentTheme(): Record<string, string> | null {
@@ -286,11 +263,8 @@ class TerminalRegistry {
 
   focusTerminal(paneId: string) {
     const entry = this.entries.get(paneId);
-    if (entry) {
-      const xtermEl = entry.container.querySelector(
-        ".xterm-helper-textarea"
-      ) as HTMLTextAreaElement | null;
-      xtermEl?.focus();
+    if (entry?.terminal) {
+      entry.terminal.focus();
     }
   }
 }
