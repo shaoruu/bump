@@ -1,0 +1,3 @@
+# No Auto Dev Server
+
+Do not run `pnpm dev`, `npm run dev`, or any dev server commands on your own. The user will start and manage the dev server manually.

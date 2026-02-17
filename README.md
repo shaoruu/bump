@@ -1,6 +1,8 @@
-# bump
+# Bump
 
-Ian's terminal built around cursor cli.
+A fast, minimal terminal built around Cursor CLI.
+
+![Bump Terminal](screenshot.png)
 
 ## Development
 
@@ -8,3 +10,5 @@ Ian's terminal built around cursor cli.
 pnpm install
 pnpm dev
 ```
+
+Built by [@shaoruu](https://twitter.com/shaoruu)

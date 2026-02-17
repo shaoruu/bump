@@ -5,7 +5,7 @@ import { LoginView } from "./components/LoginView.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PromptDialog } from "./components/Dialog.js";
 import { useAppStore } from "./store/appStore.js";
-import { registerCoreActions, getActions, executeAction } from "./lib/actions.js";
+import { registerCoreActions, getActions, initUiScale } from "./lib/actions.js";
 import { terminalRegistry } from "./components/TerminalRegistry.js";
 import { loadPersistedLayout, startLayoutPersistence } from "./lib/layout-persistence.js";
 
@@ -36,6 +36,38 @@ export function App() {
   }, [openPalette, openThemePicker]);
 
   useEffect(() => {
+    initUiScale();
+  }, []);
+
+  useEffect(() => {
+    return window.bump.onShortcut((shortcut) => {
+      if (shortcut === "Cmd+P") {
+        setPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      const match = shortcut.match(/^Cmd\+(\d)$/);
+      if (match) {
+        const index = parseInt(match[1], 10) - 1;
+        const { workspaces, switchWorkspace } = useAppStore.getState();
+        if (index < workspaces.length) {
+          switchWorkspace(workspaces[index].id);
+        }
+        return;
+      }
+
+      const actions = getActions();
+      for (const action of actions) {
+        if (!action.shortcut) continue;
+        if (normalizeShortcut(action.shortcut) === shortcut) {
+          action.execute();
+          return;
+        }
+      }
+    });
+  }, []);
+
+  useEffect(() => {
     loadPersistedLayout();
   }, []);
 
@@ -50,12 +82,6 @@ export function App() {
       setAuthChecked();
     });
   }, [setAuth, setAuthChecked]);
-
-  useEffect(() => {
-    return window.bump.onClosePane(() => {
-      executeAction("terminal.close");
-    });
-  }, []);
 
   useEffect(() => {
     return window.bump.onMenuCopy(() => {
@@ -80,39 +106,6 @@ export function App() {
       const { activePaneId } = useAppStore.getState();
       terminalRegistry.selectAll(activePaneId);
     });
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === "p") {
-        e.preventDefault();
-        setPaletteOpen((prev) => !prev);
-        return;
-      }
-
-      if (e.metaKey && e.key >= "1" && e.key <= "9") {
-        e.preventDefault();
-        const index = parseInt(e.key, 10) - 1;
-        const { workspaces, switchWorkspace } = useAppStore.getState();
-        if (index < workspaces.length) {
-          switchWorkspace(workspaces[index].id);
-        }
-        return;
-      }
-
-      const actions = getActions();
-      for (const action of actions) {
-        if (!action.shortcut) continue;
-        if (matchShortcut(e, action.shortcut)) {
-          e.preventDefault();
-          action.execute();
-          return;
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   if (!isAuthChecked || !isLayoutLoaded) {
@@ -159,16 +152,26 @@ export function App() {
   );
 }
 
-function matchShortcut(e: KeyboardEvent, shortcut: string): boolean {
-  const parts = shortcut.toLowerCase().split("+").map((s) => s.trim());
-  const needsMeta = parts.includes("cmd");
-  const needsShift = parts.includes("shift");
-  const needsCtrl = parts.includes("ctrl");
-  const key = parts.filter((p) => p !== "cmd" && p !== "shift" && p !== "ctrl")[0];
+function normalizeShortcut(shortcut: string): string {
+  const parts = shortcut.split("+").map((s) => s.trim());
+  const result: string[] = [];
 
-  if (!key) return false;
-  if (needsMeta !== e.metaKey) return false;
-  if (needsShift !== e.shiftKey) return false;
-  if (needsCtrl !== e.ctrlKey) return false;
-  return e.key.toLowerCase() === key;
+  for (const part of parts) {
+    const lower = part.toLowerCase();
+    if (lower === "cmd" || lower === "cmdorctrl") result.push("Cmd");
+    else if (lower === "shift") result.push("Shift");
+    else if (lower === "alt" || lower === "option") result.push("Alt");
+    else if (lower === "ctrl") result.push("Ctrl");
+    else if (lower.startsWith("arrow")) result.push(part);
+    else if (part === "=") result.push("=");
+    else if (part === "-") result.push("-");
+    else if (part === "0") result.push("0");
+    else result.push(part.toUpperCase());
+  }
+
+  const modifiers = ["Cmd", "Shift", "Alt", "Ctrl"];
+  const mods = result.filter((p) => modifiers.includes(p));
+  const keys = result.filter((p) => !modifiers.includes(p));
+
+  return [...mods, ...keys].join("+");
 }

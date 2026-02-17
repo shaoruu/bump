@@ -1,6 +1,48 @@
-import { useAppStore, collectLeafIds } from "../store/appStore.js";
+import { useAppStore, collectLeafIds, findPaneInDirection } from "../store/appStore.js";
 import { terminalRegistry } from "../components/TerminalRegistry.js";
 import { pendingInputs } from "../components/PaneContainer.js";
+
+const BASE_FONT_SIZE = 13;
+const MIN_FONT_SIZE = 9;
+const MAX_FONT_SIZE = 24;
+const SCALE_STEP = 1;
+const FONT_SIZE_SETTING_KEY = "fontSize";
+
+function applyUiScale(fontSize: number, persist = true): void {
+  document.documentElement.style.fontSize = `${fontSize}px`;
+  terminalRegistry.setFontSize(fontSize);
+  if (persist) {
+    window.bump.setSetting(FONT_SIZE_SETTING_KEY, String(fontSize));
+  }
+}
+
+export async function initUiScale(): Promise<void> {
+  const stored = await window.bump.getSetting(FONT_SIZE_SETTING_KEY);
+  if (stored) {
+    const size = parseInt(stored, 10);
+    if (!isNaN(size) && size >= MIN_FONT_SIZE && size <= MAX_FONT_SIZE) {
+      applyUiScale(size, false);
+      return;
+    }
+  }
+  applyUiScale(BASE_FONT_SIZE, false);
+}
+
+function zoomIn(): void {
+  const current = terminalRegistry.getFontSize();
+  const next = Math.min(current + SCALE_STEP, MAX_FONT_SIZE);
+  applyUiScale(next);
+}
+
+function zoomOut(): void {
+  const current = terminalRegistry.getFontSize();
+  const next = Math.max(current - SCALE_STEP, MIN_FONT_SIZE);
+  applyUiScale(next);
+}
+
+function resetZoom(): void {
+  applyUiScale(BASE_FONT_SIZE);
+}
 
 export interface Action {
   id: string;
@@ -348,6 +390,104 @@ export function registerCoreActions(
     execute: () => {
       window.bump.toggleFullscreen();
     },
+  });
+
+  registerAction({
+    id: "terminal.focus-left",
+    label: "Focus Pane Left",
+    shortcut: "Cmd+Alt+ArrowLeft",
+    keywords: ["navigate", "switch", "pane"],
+    icon: "arrow-left",
+    category: "terminal",
+    execute: () => {
+      const { paneTree, activePaneId, setActivePaneId } = useAppStore.getState();
+      const targetId = findPaneInDirection(paneTree, activePaneId, "left");
+      if (targetId) {
+        setActivePaneId(targetId);
+        terminalRegistry.focusTerminal(targetId);
+      }
+    },
+  });
+
+  registerAction({
+    id: "terminal.focus-right",
+    label: "Focus Pane Right",
+    shortcut: "Cmd+Alt+ArrowRight",
+    keywords: ["navigate", "switch", "pane"],
+    icon: "arrow-right",
+    category: "terminal",
+    execute: () => {
+      const { paneTree, activePaneId, setActivePaneId } = useAppStore.getState();
+      const targetId = findPaneInDirection(paneTree, activePaneId, "right");
+      if (targetId) {
+        setActivePaneId(targetId);
+        terminalRegistry.focusTerminal(targetId);
+      }
+    },
+  });
+
+  registerAction({
+    id: "terminal.focus-up",
+    label: "Focus Pane Up",
+    shortcut: "Cmd+Alt+ArrowUp",
+    keywords: ["navigate", "switch", "pane"],
+    icon: "arrow-up",
+    category: "terminal",
+    execute: () => {
+      const { paneTree, activePaneId, setActivePaneId } = useAppStore.getState();
+      const targetId = findPaneInDirection(paneTree, activePaneId, "up");
+      if (targetId) {
+        setActivePaneId(targetId);
+        terminalRegistry.focusTerminal(targetId);
+      }
+    },
+  });
+
+  registerAction({
+    id: "terminal.focus-down",
+    label: "Focus Pane Down",
+    shortcut: "Cmd+Alt+ArrowDown",
+    keywords: ["navigate", "switch", "pane"],
+    icon: "arrow-down",
+    category: "terminal",
+    execute: () => {
+      const { paneTree, activePaneId, setActivePaneId } = useAppStore.getState();
+      const targetId = findPaneInDirection(paneTree, activePaneId, "down");
+      if (targetId) {
+        setActivePaneId(targetId);
+        terminalRegistry.focusTerminal(targetId);
+      }
+    },
+  });
+
+  registerAction({
+    id: "view.zoom-in",
+    label: "Zoom In",
+    shortcut: "Cmd+=",
+    keywords: ["scale", "bigger", "larger", "font", "size"],
+    icon: "plus",
+    category: "general",
+    execute: zoomIn,
+  });
+
+  registerAction({
+    id: "view.zoom-out",
+    label: "Zoom Out",
+    shortcut: "Cmd+-",
+    keywords: ["scale", "smaller", "font", "size"],
+    icon: "minus",
+    category: "general",
+    execute: zoomOut,
+  });
+
+  registerAction({
+    id: "view.reset-zoom",
+    label: "Reset Zoom",
+    shortcut: "Cmd+0",
+    keywords: ["scale", "default", "font", "size", "actual"],
+    icon: "refresh",
+    category: "general",
+    execute: resetZoom,
   });
 
 }

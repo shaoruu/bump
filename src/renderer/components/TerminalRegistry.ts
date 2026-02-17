@@ -109,7 +109,7 @@ class TerminalRegistry {
       cursorBlink: false,
       fontFamily:
         '"Berkeley Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
-      fontSize: 13,
+      fontSize: this.currentFontSize,
       theme,
     });
 
@@ -117,15 +117,25 @@ class TerminalRegistry {
     terminal.loadAddon(fitAddon);
 
     terminal.attachCustomKeyEventHandler((e) => {
-      if (e.metaKey && e.key === "d") return true;
-      if (e.metaKey && e.key === "w") return true;
-      if (e.metaKey && e.key === "p") return true;
-      if (e.metaKey && e.key === "n") return true;
-      if (e.metaKey && e.key === "t") return true;
-      if (e.metaKey && e.key === "k") return true;
-      if (e.metaKey && e.key >= "1" && e.key <= "9") return true;
-      if (e.metaKey && e.ctrlKey && e.key === "f") return true;
-      return false;
+      if (!e.metaKey) return false;
+
+      const key = e.key.toLowerCase();
+      if (key === "c" && terminalRegistry.hasSelection(paneId)) {
+        terminalRegistry.copySelection(paneId);
+        return true;
+      }
+      if (key === "v") {
+        window.bump.readClipboard().then((text) => {
+          if (text) terminal.paste(text);
+        });
+        return true;
+      }
+      if (key === "a") {
+        terminal.selectAll();
+        return true;
+      }
+
+      return true;
     });
 
     entry.terminal = terminal;
@@ -243,6 +253,21 @@ class TerminalRegistry {
 
   getCurrentTheme(): Record<string, string> | null {
     return this.currentTheme;
+  }
+
+  private currentFontSize = 13;
+
+  setFontSize(size: number) {
+    this.currentFontSize = size;
+    for (const [, entry] of this.entries) {
+      if (entry.terminal) {
+        entry.terminal.options.fontSize = size;
+      }
+    }
+  }
+
+  getFontSize(): number {
+    return this.currentFontSize;
   }
 
   clearTerminal(paneId: string) {

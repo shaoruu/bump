@@ -5,6 +5,7 @@ import { mkdirSync, createWriteStream, writeFileSync, readFileSync, unlinkSync }
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { BUMP_DIR } from "./paths.js";
 
 function getDescendants(pid: number): number[] {
   try {
@@ -41,7 +42,6 @@ async function getPty(): Promise<typeof PtyType> {
   return pty;
 }
 
-const BUMP_DIR = join(homedir(), ".bump");
 const TERMINALS_DIR = join(BUMP_DIR, "terminals");
 
 mkdirSync(TERMINALS_DIR, { recursive: true });

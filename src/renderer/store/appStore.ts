@@ -217,6 +217,130 @@ export function collectLeafIds(node: PaneNode): string[] {
   ];
 }
 
+interface PaneRect {
+  paneId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function collectPaneRects(
+  node: PaneNode,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): PaneRect[] {
+  if (node.type === "leaf") {
+    return [{ paneId: node.paneId, x, y, width, height }];
+  }
+
+  const [size1, size2] = node.sizes;
+  const ratio = size1 / (size1 + size2);
+
+  if (node.direction === "horizontal") {
+    const w1 = width * ratio;
+    const w2 = width - w1;
+    return [
+      ...collectPaneRects(node.children[0], x, y, w1, height),
+      ...collectPaneRects(node.children[1], x + w1, y, w2, height),
+    ];
+  } else {
+    const h1 = height * ratio;
+    const h2 = height - h1;
+    return [
+      ...collectPaneRects(node.children[0], x, y, width, h1),
+      ...collectPaneRects(node.children[1], x, y + h1, width, h2),
+    ];
+  }
+}
+
+export function findPaneInDirection(
+  paneTree: PaneNode,
+  currentPaneId: string,
+  direction: "up" | "down" | "left" | "right"
+): string | null {
+  const rects = collectPaneRects(paneTree, 0, 0, 1000, 1000);
+  const current = rects.find((r) => r.paneId === currentPaneId);
+  if (!current) return null;
+
+  const currentCenterX = current.x + current.width / 2;
+  const currentCenterY = current.y + current.height / 2;
+
+  let candidates: PaneRect[] = [];
+
+  switch (direction) {
+    case "left":
+      candidates = rects.filter(
+        (r) => r.paneId !== currentPaneId && r.x + r.width <= current.x + 1
+      );
+      break;
+    case "right":
+      candidates = rects.filter(
+        (r) => r.paneId !== currentPaneId && r.x >= current.x + current.width - 1
+      );
+      break;
+    case "up":
+      candidates = rects.filter(
+        (r) => r.paneId !== currentPaneId && r.y + r.height <= current.y + 1
+      );
+      break;
+    case "down":
+      candidates = rects.filter(
+        (r) => r.paneId !== currentPaneId && r.y >= current.y + current.height - 1
+      );
+      break;
+  }
+
+  if (candidates.length === 0) return null;
+
+  // Find the closest candidate based on center distance
+  let best: PaneRect | null = null;
+  let bestScore = Infinity;
+
+  for (const c of candidates) {
+    const cCenterX = c.x + c.width / 2;
+    const cCenterY = c.y + c.height / 2;
+
+    // Primary: distance in the movement direction
+    // Secondary: perpendicular alignment (prefer panes that overlap in the perpendicular axis)
+    let primaryDist: number;
+    let perpendicularDist: number;
+
+    if (direction === "left" || direction === "right") {
+      primaryDist = Math.abs(cCenterX - currentCenterX);
+      // Check vertical overlap
+      const overlapTop = Math.max(current.y, c.y);
+      const overlapBottom = Math.min(current.y + current.height, c.y + c.height);
+      if (overlapBottom > overlapTop) {
+        perpendicularDist = 0; // Has overlap
+      } else {
+        perpendicularDist = Math.abs(cCenterY - currentCenterY);
+      }
+    } else {
+      primaryDist = Math.abs(cCenterY - currentCenterY);
+      // Check horizontal overlap
+      const overlapLeft = Math.max(current.x, c.x);
+      const overlapRight = Math.min(current.x + current.width, c.x + c.width);
+      if (overlapRight > overlapLeft) {
+        perpendicularDist = 0; // Has overlap
+      } else {
+        perpendicularDist = Math.abs(cCenterX - currentCenterX);
+      }
+    }
+
+    // Score: prioritize perpendicular alignment, then distance
+    const score = perpendicularDist * 10000 + primaryDist;
+    if (score < bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+
+  return best?.paneId ?? null;
+}
+
 const initialChatId = crypto.randomUUID();
 const initialWorkspaceId = crypto.randomUUID();
 

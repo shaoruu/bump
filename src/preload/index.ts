@@ -130,6 +130,18 @@ const bump: BumpAPI = {
 
   copyToClipboard: (text: string) => ipcRenderer.invoke("clipboard:write", text),
   readClipboard: () => ipcRenderer.invoke("clipboard:read"),
+
+  onUiScale: (cb: (direction: "in" | "out" | "reset") => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, direction: "in" | "out" | "reset") => cb(direction);
+    ipcRenderer.on("ui-scale", handler);
+    return () => ipcRenderer.removeListener("ui-scale", handler);
+  },
+
+  onShortcut: (cb: (shortcut: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, shortcut: string) => cb(shortcut);
+    ipcRenderer.on("shortcut", handler);
+    return () => ipcRenderer.removeListener("shortcut", handler);
+  },
 };
 
 contextBridge.exposeInMainWorld("bump", bump);

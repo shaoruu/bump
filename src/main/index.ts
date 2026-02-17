@@ -10,6 +10,46 @@ app.commandLine.appendSwitch("ignore-gpu-blocklist");
 let mainWindow: BrowserWindow | null = null;
 let quitConfirmed = false;
 
+const HANDLED_SHORTCUTS = new Set([
+  "Cmd+P",
+  "Cmd+D",
+  "Cmd+Shift+D",
+  "Cmd+W",
+  "Cmd+T",
+  "Cmd+K",
+  "Cmd+N",
+  "Cmd+=",
+  "Cmd+-",
+  "Cmd+0",
+  "Cmd+Ctrl+F",
+  "Cmd+Alt+ArrowUp",
+  "Cmd+Alt+ArrowDown",
+  "Cmd+Alt+ArrowLeft",
+  "Cmd+Alt+ArrowRight",
+  "Cmd+1", "Cmd+2", "Cmd+3", "Cmd+4", "Cmd+5", "Cmd+6", "Cmd+7", "Cmd+8", "Cmd+9",
+]);
+
+function buildShortcutString(input: Electron.Input): string | null {
+  if (!input.meta) return null;
+
+  const parts: string[] = ["Cmd"];
+  if (input.shift) parts.push("Shift");
+  if (input.alt) parts.push("Alt");
+  if (input.control) parts.push("Ctrl");
+
+  let key = input.key;
+  if (key === " ") key = "Space";
+  else if (key.startsWith("Arrow")) key = key;
+  else if (key.length === 1) key = key.toUpperCase();
+
+  parts.push(key);
+  const shortcut = parts.join("+");
+
+  if (!HANDLED_SHORTCUTS.has(shortcut)) return null;
+
+  return shortcut;
+}
+
 function createApplicationMenu(): void {
   const template: Electron.MenuItemConstructorOptions[] = [
     {
@@ -44,9 +84,18 @@ function createApplicationMenu(): void {
       submenu: [
         { role: "toggleDevTools" },
         { type: "separator" },
-        { role: "resetZoom" },
-        { role: "zoomIn" },
-        { role: "zoomOut" },
+        {
+          label: "Actual Size",
+          click: () => BrowserWindow.getFocusedWindow()?.webContents.send("ui-scale", "reset"),
+        },
+        {
+          label: "Zoom In",
+          click: () => BrowserWindow.getFocusedWindow()?.webContents.send("ui-scale", "in"),
+        },
+        {
+          label: "Zoom Out",
+          click: () => BrowserWindow.getFocusedWindow()?.webContents.send("ui-scale", "out"),
+        },
         { type: "separator" },
         {
           label: "Toggle Full Screen",
@@ -60,13 +109,7 @@ function createApplicationMenu(): void {
     {
       label: "Window",
       submenu: [
-        {
-          label: "Close Pane",
-          accelerator: "CmdOrCtrl+W",
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send("close-pane");
-          },
-        },
+        { label: "Close Pane" },
         { role: "minimize" },
         { role: "zoom" },
         { type: "separator" },
@@ -102,6 +145,15 @@ function createWindow(): void {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
+  });
+
+  mainWindow.webContents.on("before-input-event", (_event, input) => {
+    if (input.type !== "keyDown") return;
+
+    const shortcut = buildShortcutString(input);
+    if (shortcut) {
+      mainWindow?.webContents.send("shortcut", shortcut);
+    }
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

@@ -97,10 +97,11 @@ export function CommandPalette({ initialMode = "actions", onClose }: CommandPale
         setHighlightedValue(useAppStore.getState().themeName);
         return;
       }
-      handleClose();
+      revertPreview();
+      onClose();
       action.execute();
     },
-    [handleClose]
+    [onClose, revertPreview]
   );
 
   const handleThemeSelect = useCallback(

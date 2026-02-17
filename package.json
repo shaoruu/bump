@@ -8,7 +8,7 @@
     "dev": "node scripts/build-preload.mjs && vite",
     "build:main": "vite build --config vite.main.config.ts",
     "build": "tsc && vite build",
-    "electron:build": "vite build && electron-builder",
+    "electron:build": "node scripts/build-preload.mjs && vite build && electron-builder",
     "preview": "vite preview",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\"",

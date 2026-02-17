@@ -1,10 +1,10 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { app } from "electron";
+import { USER_DATA_DIR } from "./paths.js";
 
 type Settings = Record<string, string>;
 
-const settingsPath = join(app.getPath("userData"), "settings.json");
+const settingsPath = join(USER_DATA_DIR, "settings.json");
 
 function readAll(): Settings {
   try {

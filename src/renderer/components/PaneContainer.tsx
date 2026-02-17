@@ -10,6 +10,13 @@ import { useMenuPosition, type Position } from "../hooks/useMenuPosition.js";
 type DropZone = "left" | "right" | "top" | "bottom" | "center";
 
 let currentDragPaneId: string | null = null;
+
+function shellEscape(path: string): string {
+  if (!/[^a-zA-Z0-9_./-]/.test(path)) {
+    return path;
+  }
+  return `'${path.replace(/'/g, "'\\''")}'`;
+}
 export const pendingInputs = new Map<string, string>();
 
 function countLeaves(node: PaneNode): number {
@@ -83,6 +90,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
   const terminalIdRef = useRef<string | null>(null);
   const [dropZone, setDropZone] = useState<DropZone | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [fileDragOver, setFileDragOver] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [contextMenu, openContextMenu, closeContextMenu] = useMenuPosition();
   const [headerContextMenu, openHeaderContextMenu, closeHeaderContextMenu] = useMenuPosition();
@@ -90,6 +98,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
   const [copied, setCopied] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const enterCountRef = useRef(0);
+  const fileEnterCountRef = useRef(0);
   const dropZoneRef = useRef<DropZone | null>(null);
 
   const themeVersion = useAppStore((s) => s.themeVersion);
@@ -197,6 +206,13 @@ function PaneSlot({ paneId }: { paneId: string }) {
 
   const handleDragEnter = useCallback(
     (e: React.DragEvent) => {
+      const hasFiles = e.dataTransfer.types.includes("Files");
+      if (hasFiles) {
+        e.preventDefault();
+        fileEnterCountRef.current++;
+        setFileDragOver(true);
+        return;
+      }
       if (!currentDragPaneId || currentDragPaneId === paneId) return;
       e.preventDefault();
       enterCountRef.current++;
@@ -206,6 +222,12 @@ function PaneSlot({ paneId }: { paneId: string }) {
 
   const handleDragOver = useCallback(
     (e: React.DragEvent) => {
+      const hasFiles = e.dataTransfer.types.includes("Files");
+      if (hasFiles) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        return;
+      }
       if (!currentDragPaneId || currentDragPaneId === paneId) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
@@ -218,6 +240,13 @@ function PaneSlot({ paneId }: { paneId: string }) {
   );
 
   const handleDragLeave = useCallback(() => {
+    if (fileEnterCountRef.current > 0) {
+      fileEnterCountRef.current--;
+      if (fileEnterCountRef.current <= 0) {
+        fileEnterCountRef.current = 0;
+        setFileDragOver(false);
+      }
+    }
     enterCountRef.current--;
     if (enterCountRef.current <= 0) {
       enterCountRef.current = 0;
@@ -229,6 +258,20 @@ function PaneSlot({ paneId }: { paneId: string }) {
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
+
+      if (e.dataTransfer.files.length > 0) {
+        fileEnterCountRef.current = 0;
+        setFileDragOver(false);
+        const paths = Array.from(e.dataTransfer.files)
+          .map((f) => shellEscape((f as File & { path: string }).path))
+          .join(" ");
+        if (paths) {
+          terminalRegistry.pasteToTerminal(paneId, paths);
+          terminalRegistry.focusTerminal(paneId);
+        }
+        return;
+      }
+
       enterCountRef.current = 0;
       const sourcePaneId = e.dataTransfer.getData("application/x-pane-id");
       const zone = dropZoneRef.current;
@@ -280,9 +323,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
 
   return (
     <div
-      className={`h-full w-full relative flex flex-col ${
-        isActive ? "ring-1 ring-inset ring-accent/20" : ""
-      } ${isDragging ? "opacity-50" : ""}`}
+      className={`h-full w-full relative flex flex-col ${isDragging ? "opacity-50" : ""}`}
       onMouseDown={handleFocus}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -290,8 +331,10 @@ function PaneSlot({ paneId }: { paneId: string }) {
       onDrop={handleDrop}
     >
       <div
-        className={`h-6 shrink-0 flex items-center px-2 text-2xs select-none border-b border-white/[0.06] bg-surface-1 cursor-grab active:cursor-grabbing group/header ${
-          isActive ? "text-accent" : "text-text-tertiary"
+        className={`h-6 shrink-0 flex items-center px-2 text-2xs select-none border-b cursor-grab active:cursor-grabbing group/header ${
+          isActive
+            ? "bg-accent/15 text-accent border-accent/20"
+            : "bg-surface-1 text-text-tertiary border-white/[0.06]"
         }`}
         draggable
         onDragStart={handleDragStart}
@@ -341,6 +384,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
         </div>
       )}
       {dropZone && <DropOverlay zone={dropZone} />}
+      {fileDragOver && <FileDropOverlay />}
       {menuOpen && (
         <PaneMenu
           paneId={paneId}
@@ -529,6 +573,14 @@ function DropOverlay({ zone }: { zone: DropZone }) {
     <div
       className={`absolute pointer-events-none z-10 bg-accent/10 border border-accent/25 ${zoneClass[zone]}`}
     />
+  );
+}
+
+function FileDropOverlay() {
+  return (
+    <div className="absolute inset-x-0 top-6 bottom-0 pointer-events-none z-10 bg-accent/10 border-2 border-dashed border-accent/50 flex items-center justify-center">
+      <span className="text-accent text-sm font-medium">Drop files</span>
+    </div>
   );
 }
 

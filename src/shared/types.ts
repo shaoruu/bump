@@ -147,6 +147,9 @@ export interface BumpAPI {
 
   copyToClipboard: (text: string) => Promise<void>;
   readClipboard: () => Promise<string>;
+
+  onUiScale: (cb: (direction: "in" | "out" | "reset") => void) => () => void;
+  onShortcut: (cb: (shortcut: string) => void) => () => void;
 }
 
 declare global {

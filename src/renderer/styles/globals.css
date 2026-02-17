@@ -40,9 +40,13 @@ body,
   padding: 0;
 }
 
+html {
+  font-size: 13px;
+}
+
 body {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: inherit;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: rgb(var(--surface-0));
