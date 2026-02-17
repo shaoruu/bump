@@ -152,6 +152,8 @@ export interface BumpAPI {
 
   onUiScale: (cb: (direction: "in" | "out" | "reset") => void) => () => void;
   onShortcut: (cb: (shortcut: string) => void) => () => void;
+
+  getPathForFile: (file: File) => string;
 }
 
 declare global {

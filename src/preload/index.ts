@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type {
   BumpAPI,
   PermissionRequest,
@@ -146,6 +146,8 @@ const bump: BumpAPI = {
     ipcRenderer.on("shortcut", handler);
     return () => ipcRenderer.removeListener("shortcut", handler);
   },
+
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
 };
 
 contextBridge.exposeInMainWorld("bump", bump);

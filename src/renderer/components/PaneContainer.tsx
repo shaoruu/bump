@@ -263,7 +263,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
         fileEnterCountRef.current = 0;
         setFileDragOver(false);
         const paths = Array.from(e.dataTransfer.files)
-          .map((f) => shellEscape((f as File & { path: string }).path))
+          .map((f) => shellEscape(window.bump.getPathForFile(f)))
           .join(" ");
         if (paths) {
           terminalRegistry.pasteToTerminal(paneId, paths);
