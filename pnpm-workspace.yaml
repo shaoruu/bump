@@ -1,0 +1,11 @@
+onlyBuiltDependencies:
+  - a
+  - b
+  - e
+  - electron
+  - esbuild
+  - keytar
+  - node-pty
+  - p
+  - s
+  - u

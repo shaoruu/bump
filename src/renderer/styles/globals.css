@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-mono: "Berkeley Mono", "SF Mono", Menlo, ui-monospace,
+    SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
+
+.dark {
+  --surface-0: 10 10 10;
+  --surface-1: 22 22 22;
+  --surface-2: 34 34 34;
+
+  --text-primary: 230 230 230;
+  --text-secondary: 140 140 140;
+  --text-tertiary: 90 90 90;
+
+  --accent: 82 182 154;
+  --border: 255 255 255;
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.06);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.12);
+}
+
+*,
+::before,
+::after {
+  box-sizing: border-box;
+  border-color: rgb(var(--border) / 0.1);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: rgb(var(--surface-0));
+  color: rgb(var(--text-primary));
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+::selection {
+  background-color: rgb(var(--accent) / 0.2);
+}
+
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+* {
+  font-family: var(--font-mono);
+}

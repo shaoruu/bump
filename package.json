@@ -1,0 +1,50 @@
+{
+  "name": "bump",
+  "version": "0.1.0",
+  "description": "Terminal that bumps into AI when you need it",
+  "main": "dist/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/build-preload.mjs && vite",
+    "build:main": "vite build --config vite.main.config.ts",
+    "build": "tsc && vite build",
+    "electron:build": "vite build && electron-builder",
+    "preview": "vite preview",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\"",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/xterm": "^5.5.0",
+    "@zed-industries/agent-client-protocol": "^0.4.5",
+    "keytar": "^7.9.0",
+    "node-pty": "^1.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-resizable-panels": "^4.6.4",
+    "strip-ansi": "^7.1.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "chokidar": "^5.0.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.27.2",
+    "postcss": "^8.4.49",
+    "prettier": "^3.4.2",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vite-plugin-electron": "^0.28.8",
+    "vite-plugin-electron-renderer": "^0.14.6"
+  },
+  "packageManager": "pnpm@10.22.0+sha512.bf049efe995b28f527fd2b41ae0474ce29186f7edcb3bf545087bd61fbbebb2bf75362d1307fda09c2d288e1e499787ac12d4fcb617a974718a6051f2eee741c"
+}

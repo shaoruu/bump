@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.bump.app",
+  "productName": "bump",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "mac": {
+    "target": ["dmg"],
+    "category": "public.app-category.developer-tools"
+  },
+  "win": {
+    "target": ["nsis"]
+  },
+  "linux": {
+    "target": ["AppImage"]
+  }
+}
