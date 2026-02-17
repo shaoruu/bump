@@ -548,12 +548,7 @@ export class SelectionManager {
       if (this.isSelecting) {
         this.isSelecting = false;
         this.stopAutoScroll();
-
-        const text = this.getSelection();
-        if (text) {
-          this.copyToClipboard(text);
-          this.selectionChangedEmitter.fire();
-        }
+        this.selectionChangedEmitter.fire();
       }
     };
     document.addEventListener('mouseup', this.boundMouseUpHandler);
@@ -568,73 +563,17 @@ export class SelectionManager {
         this.selectionStart = { col: word.startCol, absoluteRow };
         this.selectionEnd = { col: word.endCol, absoluteRow };
         this.requestRender();
-
-        const text = this.getSelection();
-        if (text) {
-          this.copyToClipboard(text);
-          this.selectionChangedEmitter.fire();
-        }
+        this.selectionChangedEmitter.fire();
       }
     });
 
-    // Right-click (context menu) - position textarea to show browser's native menu
-    // This allows Copy/Paste options to appear in the context menu
     this.boundContextMenuHandler = (e: MouseEvent) => {
-      // Position textarea at mouse cursor
+      e.preventDefault();
       const canvas = this.renderer.getCanvas();
-      const rect = canvas.getBoundingClientRect();
-
-      this.textarea.style.position = 'fixed';
-      this.textarea.style.left = `${e.clientX}px`;
-      this.textarea.style.top = `${e.clientY}px`;
-      this.textarea.style.width = '1px';
-      this.textarea.style.height = '1px';
-      this.textarea.style.zIndex = '1000';
-      this.textarea.style.opacity = '0';
-
-      // Enable pointer events temporarily so context menu targets the textarea
-      this.textarea.style.pointerEvents = 'auto';
-
-      // If there's a selection, populate textarea with it and select the text
-      if (this.hasSelection()) {
-        const text = this.getSelection();
-        this.textarea.value = text;
-        this.textarea.select();
-        this.textarea.setSelectionRange(0, text.length);
-      } else {
-        // No selection - clear textarea but still show menu (for paste)
-        this.textarea.value = '';
-      }
-
-      // Focus the textarea so the context menu appears on it
-      this.textarea.focus();
-
-      // After a short delay, restore the textarea to its hidden state
-      // This allows the context menu to appear first
-      setTimeout(() => {
-        // Listen for when the context menu closes (user clicks away or selects an option)
-        const resetTextarea = () => {
-          this.textarea.style.pointerEvents = 'none';
-          this.textarea.style.zIndex = '-10';
-          this.textarea.style.width = '0';
-          this.textarea.style.height = '0';
-          this.textarea.style.left = '0';
-          this.textarea.style.top = '0';
-          this.textarea.value = '';
-
-          // Remove the one-time listeners
-          document.removeEventListener('click', resetTextarea);
-          document.removeEventListener('contextmenu', resetTextarea);
-          this.textarea.removeEventListener('blur', resetTextarea);
-        };
-
-        // Reset on any of these events (menu closed)
-        document.addEventListener('click', resetTextarea, { once: true });
-        document.addEventListener('contextmenu', resetTextarea, { once: true });
-        this.textarea.addEventListener('blur', resetTextarea, { once: true });
-      }, 10);
-
-      // Don't prevent default - let browser show the context menu on the textarea
+      canvas.dispatchEvent(new CustomEvent("terminal-context-menu", {
+        bubbles: true,
+        detail: { x: e.clientX, y: e.clientY },
+      }));
     };
 
     canvas.addEventListener('contextmenu', this.boundContextMenuHandler);
@@ -853,102 +792,8 @@ export class SelectionManager {
     return { startCol, endCol };
   }
 
-  /**
-   * Copy text to clipboard
-   *
-   * Strategy (modern APIs first):
-   * 1. Try ClipboardItem API (works in Safari and modern browsers)
-   *    - Safari requires the ClipboardItem to be created synchronously within user gesture
-   * 2. Try navigator.clipboard.writeText (modern async API, may fail in Safari)
-   * 3. Fall back to execCommand (legacy, for older browsers)
-   */
   private copyToClipboard(text: string): void {
-    // First try: ClipboardItem API (modern, Safari-compatible)
-    // Safari allows this because we create the ClipboardItem synchronously
-    // within the user gesture, even though the write is async
-    if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
-      try {
-        const blob = new Blob([text], { type: 'text/plain' });
-        const clipboardItem = new ClipboardItem({
-          'text/plain': blob,
-        });
-        navigator.clipboard.write([clipboardItem]).catch((err) => {
-          console.warn('ClipboardItem write failed, trying writeText:', err);
-          // Try writeText as fallback
-          this.copyWithWriteText(text);
-        });
-        return;
-      } catch (err) {
-        // ClipboardItem not supported or failed, fall through
-      }
-    }
-
-    // Second try: basic async writeText (works in Chrome, may fail in Safari)
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch((err) => {
-        console.warn('Clipboard writeText failed, trying execCommand:', err);
-        // Fall back to execCommand
-        this.copyWithExecCommand(text);
-      });
-      return;
-    }
-
-    // Third try: legacy execCommand fallback
-    this.copyWithExecCommand(text);
-  }
-
-  /**
-   * Copy using navigator.clipboard.writeText
-   */
-  private copyWithWriteText(text: string): void {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch((err) => {
-        console.warn('Clipboard writeText failed, trying execCommand:', err);
-        this.copyWithExecCommand(text);
-      });
-    } else {
-      this.copyWithExecCommand(text);
-    }
-  }
-
-  /**
-   * Copy using legacy execCommand (fallback for older browsers)
-   */
-  private copyWithExecCommand(text: string): void {
-    const previouslyFocused = document.activeElement as HTMLElement;
-    try {
-      // Position textarea offscreen but in a way that allows selection
-      const textarea = this.textarea;
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.left = '-9999px';
-      textarea.style.top = '0';
-      textarea.style.width = '1px';
-      textarea.style.height = '1px';
-      textarea.style.opacity = '0';
-
-      // Select all text and copy
-      textarea.focus();
-      textarea.select();
-      textarea.setSelectionRange(0, text.length);
-
-      const success = document.execCommand('copy');
-
-      // Restore focus
-      if (previouslyFocused) {
-        previouslyFocused.focus();
-      }
-
-      if (!success) {
-        console.warn('execCommand copy failed');
-      }
-    } catch (err) {
-      console.warn('execCommand copy threw:', err);
-      // Restore focus on error
-      if (previouslyFocused) {
-        previouslyFocused.focus();
-      }
-    }
+    window.bump.copyToClipboard(text);
   }
 
   /**

@@ -262,7 +262,32 @@ class TerminalRegistry {
       if (line) lines.push(line.translateToString(true));
     }
     const text = lines.join("\n").trimEnd();
-    if (text) navigator.clipboard.writeText(text);
+    if (text) window.bump.copyToClipboard(text);
+  }
+
+  copySelection(paneId: string): boolean {
+    const entry = this.entries.get(paneId);
+    return entry?.terminal?.copySelection() ?? false;
+  }
+
+  hasSelection(paneId: string): boolean {
+    const entry = this.entries.get(paneId);
+    return entry?.terminal?.hasSelection() ?? false;
+  }
+
+  getSelection(paneId: string): string {
+    const entry = this.entries.get(paneId);
+    return entry?.terminal?.getSelection() ?? "";
+  }
+
+  selectAll(paneId: string) {
+    const entry = this.entries.get(paneId);
+    entry?.terminal?.selectAll();
+  }
+
+  clearSelection(paneId: string) {
+    const entry = this.entries.get(paneId);
+    entry?.terminal?.clearSelection();
   }
 
   pasteToTerminal(paneId: string, text: string) {

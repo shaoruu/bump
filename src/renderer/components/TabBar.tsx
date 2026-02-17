@@ -7,6 +7,7 @@ import {
   useSensors,
   DragEndEvent,
 } from "@dnd-kit/core";
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import {
   SortableContext,
   horizontalListSortingStrategy,
@@ -77,6 +78,7 @@ export function TabBar() {
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
+          modifiers={[restrictToHorizontalAxis]}
           onDragEnd={handleDragEnd}
         >
           <SortableContext

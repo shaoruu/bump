@@ -115,6 +115,15 @@ const bump: BumpAPI = {
     ipcRenderer.on("menu-paste", handler);
     return () => ipcRenderer.removeListener("menu-paste", handler);
   },
+
+  onMenuCopy: (cb: () => void) => {
+    const handler = () => cb();
+    ipcRenderer.on("menu-copy", handler);
+    return () => ipcRenderer.removeListener("menu-copy", handler);
+  },
+
+  copyToClipboard: (text: string) => ipcRenderer.invoke("clipboard:write", text),
+  readClipboard: () => ipcRenderer.invoke("clipboard:read"),
 };
 
 contextBridge.exposeInMainWorld("bump", bump);

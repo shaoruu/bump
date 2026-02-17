@@ -142,6 +142,10 @@ export interface BumpAPI {
   openExternal: (url: string) => Promise<void>;
   onClosePane: (cb: () => void) => () => void;
   onMenuPaste: (cb: () => void) => () => void;
+  onMenuCopy: (cb: () => void) => () => void;
+
+  copyToClipboard: (text: string) => Promise<void>;
+  readClipboard: () => Promise<string>;
 }
 
 declare global {

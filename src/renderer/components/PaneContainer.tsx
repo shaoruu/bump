@@ -83,6 +83,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
   const [dropZone, setDropZone] = useState<DropZone | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isReady, setIsReady] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const enterCountRef = useRef(0);
@@ -114,7 +115,10 @@ function PaneSlot({ paneId }: { paneId: string }) {
       initialCwd
     );
 
-    if (entry.terminalId) setIsReady(true);
+    if (entry.terminalId) {
+      terminalIdRef.current = entry.terminalId;
+      setIsReady(true);
+    }
 
     slot.appendChild(entry.container);
 
@@ -156,6 +160,17 @@ function PaneSlot({ paneId }: { paneId: string }) {
       }
     }, 50);
     return () => clearInterval(check);
+  }, []);
+
+  useEffect(() => {
+    const slot = slotRef.current;
+    if (!slot) return;
+    const handler = (e: Event) => {
+      const { x, y } = (e as CustomEvent<{ x: number; y: number }>).detail;
+      setContextMenu({ x, y });
+    };
+    slot.addEventListener("terminal-context-menu", handler);
+    return () => slot.removeEventListener("terminal-context-menu", handler);
   }, []);
 
   const handleFocus = useCallback(() => {
@@ -233,7 +248,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
     const infos = await window.bump.getTerminalInfo();
     const info = infos.find((i) => i.id === tid);
     if (info?.logPath) {
-      navigator.clipboard.writeText(info.logPath);
+      window.bump.copyToClipboard(info.logPath);
     }
   }, []);
 
@@ -320,6 +335,144 @@ function PaneSlot({ paneId }: { paneId: string }) {
           onClose={() => setMenuOpen(false)}
         />
       )}
+      {contextMenu && (
+        <TerminalContextMenu
+          paneId={paneId}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function TerminalContextMenu({
+  paneId,
+  x,
+  y,
+  onClose,
+}: {
+  paneId: string;
+  x: number;
+  y: number;
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const hasSelection = terminalRegistry.hasSelection(paneId);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  useEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+      menu.style.left = `${x - rect.width}px`;
+    }
+    if (rect.bottom > window.innerHeight) {
+      menu.style.top = `${y - rect.height}px`;
+    }
+  }, [x, y]);
+
+  const copy = () => {
+    const text = terminalRegistry.getSelection(paneId);
+    if (text) window.bump.copyToClipboard(text);
+    onClose();
+  };
+
+  const paste = () => {
+    window.bump.readClipboard().then((text) => {
+      if (text) terminalRegistry.pasteToTerminal(paneId, text);
+    });
+    onClose();
+  };
+
+  const selectAll = () => {
+    terminalRegistry.selectAll(paneId);
+    onClose();
+  };
+
+  const clear = () => {
+    terminalRegistry.clearTerminal(paneId);
+    onClose();
+  };
+
+  const copyOutput = () => {
+    terminalRegistry.copyOutput(paneId);
+    onClose();
+  };
+
+  const splitRight = () => {
+    const terminalId = useAppStore.getState().panes.get(paneId)?.terminalId;
+    if (terminalId) {
+      window.bump.getTerminalCwd(terminalId).then((cwd) => {
+        useAppStore.getState().splitPane(paneId, "horizontal", cwd ?? undefined);
+      });
+    } else {
+      useAppStore.getState().splitPane(paneId, "horizontal");
+    }
+    onClose();
+  };
+
+  const splitDown = () => {
+    const terminalId = useAppStore.getState().panes.get(paneId)?.terminalId;
+    if (terminalId) {
+      window.bump.getTerminalCwd(terminalId).then((cwd) => {
+        useAppStore.getState().splitPane(paneId, "vertical", cwd ?? undefined);
+      });
+    } else {
+      useAppStore.getState().splitPane(paneId, "vertical");
+    }
+    onClose();
+  };
+
+  const closePane = () => {
+    const { paneTree, workspaces } = useAppStore.getState();
+    if (paneTree.type === "leaf" && workspaces.length <= 1) {
+      terminalRegistry.destroy(paneId);
+      window.bump.closeWindow();
+      onClose();
+      return;
+    }
+    terminalRegistry.destroy(paneId);
+    useAppStore.getState().closePane(paneId);
+    onClose();
+  };
+
+  return (
+    <div
+      ref={menuRef}
+      style={{ left: x, top: y }}
+      className="fixed z-50 bg-surface-1 border border-border py-1 min-w-[180px] shadow-lg"
+    >
+      <MenuButton label="Copy" shortcut="⌘C" onClick={copy} disabled={!hasSelection} />
+      <MenuButton label="Paste" shortcut="⌘V" onClick={paste} />
+      <MenuButton label="Select All" shortcut="⌘A" onClick={selectAll} />
+      <div className="h-px bg-white/[0.06] mx-2 my-1" />
+      <MenuButton label="Clear" shortcut="⌘K" onClick={clear} />
+      <MenuButton label="Copy Output" onClick={copyOutput} />
+      <div className="h-px bg-white/[0.06] mx-2 my-1" />
+      <MenuButton label="Split Right" shortcut="⌘D" onClick={splitRight} />
+      <MenuButton label="Split Down" shortcut="⌘⇧D" onClick={splitDown} />
+      <div className="h-px bg-white/[0.06] mx-2 my-1" />
+      <MenuButton label="Close" shortcut="⌘W" onClick={closePane} />
     </div>
   );
 }
@@ -428,15 +581,22 @@ function MenuButton({
   label,
   shortcut,
   onClick,
+  disabled,
 }: {
   label: string;
   shortcut?: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center justify-between px-3 py-1 text-2xs text-text-secondary hover:bg-white/[0.06] hover:text-text-primary transition-colors"
+      disabled={disabled}
+      className={`w-full flex items-center justify-between px-3 py-1 text-2xs transition-colors ${
+        disabled
+          ? "text-text-tertiary/50 cursor-default"
+          : "text-text-secondary hover:bg-white/[0.06] hover:text-text-primary"
+      }`}
     >
       <span>{label}</span>
       {shortcut && <span className="text-text-tertiary ml-4">{shortcut}</span>}

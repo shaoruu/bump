@@ -1,4 +1,4 @@
-import { ipcMain, dialog, type BrowserWindow } from "electron";
+import { ipcMain, clipboard, dialog, type BrowserWindow } from "electron";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   createTerminal,
@@ -158,6 +158,14 @@ export function setupIpcHandlers(
 
   ipcMain.handle("themes:list", async () => {
     return loadGhosttyThemes();
+  });
+
+  ipcMain.handle("clipboard:write", async (_event, text: string) => {
+    clipboard.writeText(text);
+  });
+
+  ipcMain.handle("clipboard:read", async () => {
+    return clipboard.readText();
   });
 
   ipcMain.handle("settings:get", async (_event, key: string) => {

@@ -33,7 +33,7 @@ function createApplicationMenu(): void {
         { role: "redo" },
         { type: "separator" },
         { role: "cut" },
-        { role: "copy" },
+        { label: "Copy", click: () => BrowserWindow.getFocusedWindow()?.webContents.send("menu-copy") },
         { label: "Paste", click: () => BrowserWindow.getFocusedWindow()?.webContents.send("menu-paste") },
         { role: "delete" },
         { role: "selectAll" },

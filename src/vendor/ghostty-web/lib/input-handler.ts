@@ -386,11 +386,11 @@ export class InputHandler {
 
     if ((event.ctrlKey || event.metaKey) && event.code === 'KeyV') {
       event.preventDefault();
-      navigator.clipboard.readText().then((text) => {
+      window.bump.readClipboard().then((text) => {
         if (text) {
           this.emitPasteData(text);
         }
-      }).catch(() => {});
+      });
       return;
     }
 

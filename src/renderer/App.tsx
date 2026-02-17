@@ -58,13 +58,20 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    return window.bump.onMenuCopy(() => {
+      const { activePaneId } = useAppStore.getState();
+      terminalRegistry.copySelection(activePaneId);
+    });
+  }, []);
+
+  useEffect(() => {
     return window.bump.onMenuPaste(() => {
-      navigator.clipboard.readText().then((text) => {
+      window.bump.readClipboard().then((text) => {
         if (text) {
           const { activePaneId } = useAppStore.getState();
           terminalRegistry.pasteToTerminal(activePaneId, text);
         }
-      }).catch(() => {});
+      });
     });
   }, []);
 
