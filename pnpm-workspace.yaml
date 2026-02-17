@@ -1,6 +1,7 @@
 onlyBuiltDependencies:
   - a
   - b
+  - canvas
   - e
   - electron
   - esbuild

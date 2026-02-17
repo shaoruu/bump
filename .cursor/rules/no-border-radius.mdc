@@ -1,0 +1,15 @@
+---
+description: No border radius anywhere in the project
+globs: ["**/*.tsx", "**/*.ts", "**/*.css", "**/*.js"]
+alwaysApply: true
+---
+
+# No Border Radius
+
+Do not use border-radius anywhere in the project. This includes:
+
+- No `rounded`, `rounded-*` Tailwind classes
+- No `border-radius` in CSS
+- No `borderRadius` in inline styles or theme config
+
+The app should have sharp, square corners everywhere. No exceptions.

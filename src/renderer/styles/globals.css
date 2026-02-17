@@ -60,7 +60,6 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
-  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -87,4 +86,42 @@ textarea:focus-visible {
 
 * {
   font-family: var(--font-mono);
+  font-style: normal;
+}
+
+input, textarea {
+  font-style: normal;
+  font-variant-ligatures: none;
+  caret-shape: bar;
+  font-feature-settings: normal;
+  text-rendering: geometricPrecision;
+}
+
+.tiptap-input .tiptap {
+  outline: none;
+  min-height: 20px;
+  max-height: 120px;
+  overflow-y: auto;
+  word-break: break-word;
+}
+
+.tiptap-input .tiptap p {
+  margin: 0;
+  line-height: 20px;
+}
+
+.tiptap-input .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: rgb(var(--text-tertiary));
+  pointer-events: none;
+  position: absolute;
+}
+
+.tiptap-input .tiptap .mention {
+  display: inline;
+  background: rgb(var(--accent) / 0.15);
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(var(--accent));
 }

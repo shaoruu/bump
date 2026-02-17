@@ -7,7 +7,9 @@ import type {
 } from "../shared/types.js";
 
 const bump: BumpAPI = {
-  createTerminal: () => ipcRenderer.invoke("terminal:create"),
+  createTerminal: (cwd?: string) => ipcRenderer.invoke("terminal:create", cwd),
+
+  getTerminalCwd: (id: string) => ipcRenderer.invoke("terminal:cwd", id),
 
   writeTerminal: (id: string, data: string) =>
     ipcRenderer.invoke("terminal:write", id, data),
@@ -31,6 +33,14 @@ const bump: BumpAPI = {
     return () => ipcRenderer.removeListener(`terminal:exit:${id}`, handler);
   },
 
+  getTerminalInfo: () => ipcRenderer.invoke("terminal:info"),
+
+  onTerminalTitle: (id: string, cb: (title: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, title: string) => cb(title);
+    ipcRenderer.on("terminal:title:" + id, handler);
+    return () => ipcRenderer.removeListener("terminal:title:" + id, handler);
+  },
+
   getTerminalBuffer: (id: string) =>
     ipcRenderer.invoke("terminal:buffer", id),
 
@@ -39,8 +49,8 @@ const bump: BumpAPI = {
 
   stopAgent: () => ipcRenderer.invoke("agent:stop"),
 
-  promptAgent: (text: string, terminalContext?: string) =>
-    ipcRenderer.invoke("agent:prompt", text, terminalContext),
+  promptAgent: (text: string) =>
+    ipcRenderer.invoke("agent:prompt", text),
 
   cancelAgent: () => ipcRenderer.invoke("agent:cancel"),
 
@@ -71,9 +81,29 @@ const bump: BumpAPI = {
 
   checkAuth: () => ipcRenderer.invoke("auth:check"),
 
+  listThemes: () => ipcRenderer.invoke("themes:list"),
+
+  getSetting: (key: string) => ipcRenderer.invoke("settings:get", key),
+  setSetting: (key: string, value: string) =>
+    ipcRenderer.invoke("settings:set", key, value),
+
+  onFullscreenChange: (cb: (isFullscreen: boolean) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, val: boolean) => cb(val);
+    ipcRenderer.on("fullscreen-change", handler);
+    return () => ipcRenderer.removeListener("fullscreen-change", handler);
+  },
+
   selectDirectory: () => ipcRenderer.invoke("dialog:select-directory"),
 
   getCwd: () => ipcRenderer.invoke("app:cwd"),
+
+  closeWindow: () => ipcRenderer.invoke("window:close"),
+
+  onClosePane: (cb: () => void) => {
+    const handler = () => cb();
+    ipcRenderer.on("close-pane", handler);
+    return () => ipcRenderer.removeListener("close-pane", handler);
+  },
 };
 
 contextBridge.exposeInMainWorld("bump", bump);

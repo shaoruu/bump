@@ -88,19 +88,35 @@ export type SessionUpdatePayload =
       rawOutput?: Record<string, unknown>;
     };
 
+
+export interface GhosttyTheme {
+  name: string;
+  background: string;
+  foreground: string;
+  cursor: string;
+  cursorText: string;
+  selectionBackground: string;
+  selectionForeground: string;
+  palette: string[];
+}
+
 export interface BumpAPI {
-  createTerminal: () => Promise<{ id: string; pid: number }>;
+  createTerminal: (cwd?: string) => Promise<{ id: string; pid: number }>;
+  getTerminalCwd: (id: string) => Promise<string | null>;
   writeTerminal: (id: string, data: string) => Promise<void>;
   resizeTerminal: (id: string, cols: number, rows: number) => Promise<void>;
   closeTerminal: (id: string) => Promise<void>;
   onTerminalData: (id: string, cb: (data: string) => void) => () => void;
   onTerminalExit: (id: string, cb: (exitCode: number) => void) => () => void;
 
+  getTerminalInfo: () => Promise<{ id: string; logPath: string; title: string }[]>;
+  onTerminalTitle: (id: string, cb: (title: string) => void) => () => void;
+
   getTerminalBuffer: (id: string) => Promise<string>;
 
   startAgent: (workspacePath: string) => Promise<void>;
   stopAgent: () => Promise<void>;
-  promptAgent: (text: string, terminalContext?: string) => Promise<{ stopReason: string }>;
+  promptAgent: (text: string) => Promise<{ stopReason: string }>;
   cancelAgent: () => Promise<void>;
   getAgentStatus: () => Promise<AgentStatus>;
 
@@ -110,8 +126,18 @@ export interface BumpAPI {
 
   checkAuth: () => Promise<{ authenticated: boolean; email?: string }>;
 
+  listThemes: () => Promise<GhosttyTheme[]>;
+
+  getSetting: (key: string) => Promise<string | null>;
+  setSetting: (key: string, value: string) => Promise<void>;
+
+  onFullscreenChange: (cb: (isFullscreen: boolean) => void) => () => void;
+
   selectDirectory: () => Promise<string | null>;
   getCwd: () => Promise<string>;
+
+  closeWindow: () => Promise<void>;
+  onClosePane: (cb: () => void) => () => void;
 }
 
 declare global {

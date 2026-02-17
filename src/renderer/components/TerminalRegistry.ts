@@ -28,19 +28,22 @@ let xtermModules: {
   Terminal: typeof import("@xterm/xterm").Terminal;
   FitAddon: typeof import("@xterm/addon-fit").FitAddon;
   WebLinksAddon: typeof import("@xterm/addon-web-links").WebLinksAddon;
+  WebglAddon: typeof import("@xterm/addon-webgl").WebglAddon;
 } | null = null;
 
 async function loadXtermModules() {
   if (xtermModules) return xtermModules;
-  const [xtermModule, fitModule, webLinksModule] = await Promise.all([
+  const [xtermModule, fitModule, webLinksModule, webglModule] = await Promise.all([
     import("@xterm/xterm"),
     import("@xterm/addon-fit"),
     import("@xterm/addon-web-links"),
+    import("@xterm/addon-webgl"),
   ]);
   xtermModules = {
     Terminal: xtermModule.Terminal,
     FitAddon: fitModule.FitAddon,
     WebLinksAddon: webLinksModule.WebLinksAddon,
+    WebglAddon: webglModule.WebglAddon,
   };
   return xtermModules;
 }
@@ -52,15 +55,19 @@ interface TerminalCallbacks {
 
 interface TerminalEntry {
   container: HTMLDivElement;
+  terminal: import("@xterm/xterm").Terminal | null;
   terminalId: string | null;
   cleanup: (() => void) | null;
   callbacks: TerminalCallbacks;
 }
 
+import { getThemeCache } from "../lib/theme-cache.js";
+
 class TerminalRegistry {
   private entries = new Map<string, TerminalEntry>();
+  private currentTheme: Record<string, string> | null = getThemeCache()?.xtermTheme ?? null;
 
-  getOrCreate(paneId: string, callbacks: TerminalCallbacks): TerminalEntry {
+  getOrCreate(paneId: string, callbacks: TerminalCallbacks, cwd?: string): TerminalEntry {
     const existing = this.entries.get(paneId);
     if (existing) return existing;
 
@@ -72,13 +79,14 @@ class TerminalRegistry {
 
     const entry: TerminalEntry = {
       container,
+      terminal: null,
       terminalId: null,
       cleanup: null,
       callbacks,
     };
 
     this.entries.set(paneId, entry);
-    this.initTerminal(paneId, entry);
+    this.initTerminal(paneId, entry, cwd);
 
     return entry;
   }
@@ -98,16 +106,16 @@ class TerminalRegistry {
     this.initTerminal(paneId, entry);
   }
 
-  private async initTerminal(paneId: string, entry: TerminalEntry) {
+  private async initTerminal(paneId: string, entry: TerminalEntry, cwd?: string) {
     const modules = await loadXtermModules();
-    const { Terminal, FitAddon, WebLinksAddon } = modules;
+    const { Terminal, FitAddon, WebLinksAddon, WebglAddon } = modules;
 
     const terminal = new Terminal({
       cursorBlink: true,
       fontFamily:
         '"Berkeley Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
       fontSize: 13,
-      lineHeight: 1.2,
+      lineHeight: 1.0,
       theme: terminalTheme,
     });
 
@@ -120,15 +128,30 @@ class TerminalRegistry {
       if (e.metaKey && e.key === "d") return false;
       if (e.metaKey && e.key === "w") return false;
       if (e.metaKey && e.key === "i") return false;
+      if (e.metaKey && e.key === "p") return false;
+      if (e.metaKey && e.key === "n") return false;
+      if (e.metaKey && e.key === "t") return false;
+      if (e.metaKey && e.key >= "1" && e.key <= "9") return false;
       return true;
     });
 
+    entry.terminal = terminal;
     terminal.open(entry.container);
+
+    try {
+      const webglAddon = new WebglAddon();
+      webglAddon.onContextLoss(() => {
+        webglAddon.dispose();
+      });
+      terminal.loadAddon(webglAddon);
+    } catch {
+      // fall back to DOM renderer
+    }
 
     requestAnimationFrame(() => {
       fitAddon.fit();
 
-      window.bump.createTerminal().then(({ id }) => {
+      window.bump.createTerminal(cwd).then(({ id }) => {
         entry.terminalId = id;
         const { cols, rows } = terminal;
         window.bump.resizeTerminal(id, cols, rows);
@@ -145,12 +168,28 @@ class TerminalRegistry {
     let realUnsubData: (() => void) | null = null;
     let realUnsubExit: (() => void) | null = null;
 
+    let writeBuffer = "";
+    let writeRaf = 0;
+
+    const flushWrites = () => {
+      if (writeBuffer.length > 0) {
+        terminal.write(writeBuffer);
+        writeBuffer = "";
+      }
+      writeRaf = 0;
+    };
+
     const waitForId = setInterval(() => {
       if (entry.terminalId) {
         clearInterval(waitForId);
         realUnsubData = window.bump.onTerminalData(
           entry.terminalId,
-          (data) => terminal.write(data)
+          (data) => {
+            writeBuffer += data;
+            if (!writeRaf) {
+              writeRaf = requestAnimationFrame(flushWrites);
+            }
+          }
         );
         realUnsubExit = window.bump.onTerminalExit(entry.terminalId, () => {
           entry.callbacks.onExit(paneId);
@@ -175,9 +214,16 @@ class TerminalRegistry {
     });
     resizeObserver.observe(entry.container);
 
+    if (this.currentTheme) {
+      terminal.options.theme = this.currentTheme;
+      entry.container.style.background = this.currentTheme.background || "#0a0a0a";
+    }
+
     terminal.focus();
 
     entry.cleanup = () => {
+      if (writeRaf) cancelAnimationFrame(writeRaf);
+      flushWrites();
       inputDisposable.dispose();
       realUnsubData?.();
       realUnsubExit?.();
@@ -185,6 +231,7 @@ class TerminalRegistry {
       resizeObserver.disconnect();
       if (resizeTimeout) cancelAnimationFrame(resizeTimeout);
       terminal.dispose();
+      entry.terminal = null;
       if (entry.terminalId) {
         window.bump.closeTerminal(entry.terminalId);
       }
@@ -198,6 +245,22 @@ class TerminalRegistry {
       entry.container.remove();
       this.entries.delete(paneId);
     }
+  }
+
+  setTheme(theme: Record<string, string>) {
+    for (const [, entry] of this.entries) {
+      if (entry.terminal) {
+        entry.terminal.options.theme = theme;
+      }
+      if (theme.background) {
+        entry.container.style.background = theme.background;
+      }
+    }
+    this.currentTheme = theme;
+  }
+
+  getCurrentTheme(): Record<string, string> | null {
+    return this.currentTheme;
   }
 
   focusTerminal(paneId: string) {

@@ -1,12 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { PaneContainer } from "./components/PaneContainer.js";
 import { AgentPanel } from "./components/AgentPanel.js";
 import { InputBar } from "./components/InputBar.js";
-import { ModeIndicator } from "./components/ModeIndicator.js";
+import { TabBar } from "./components/TabBar.js";
 import { PermissionModal } from "./components/PermissionModal.js";
 import { LoginView } from "./components/LoginView.js";
+import { ChatMenu } from "./components/ChatMenu.js";
+import { CommandPalette } from "./components/CommandPalette.js";
 import { useAppStore } from "./store/appStore.js";
-import { terminalRegistry } from "./components/TerminalRegistry.js";
+import { registerCoreActions, getActions, executeAction } from "./lib/actions.js";
 
 export function App() {
   const isAuthChecked = useAppStore((s) => s.isAuthChecked);
@@ -19,6 +21,24 @@ export function App() {
   const setPendingPermission = useAppStore((s) => s.setPendingPermission);
   const agentPanelVisible = useAppStore((s) => s.agentPanelVisible);
   const mode = useAppStore((s) => s.mode);
+
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteMode, setPaletteMode] = useState<"actions" | "themes">("actions");
+
+  const openPalette = useCallback(() => {
+    setPaletteMode("actions");
+    setPaletteOpen(true);
+  }, []);
+
+  const openThemePicker = useCallback(() => {
+    setPaletteMode("themes");
+    setPaletteOpen(true);
+  }, []);
+
+  useEffect(() => {
+    registerCoreActions(openPalette, openThemePicker);
+  }, [openPalette, openThemePicker]);
+
 
   useEffect(() => {
     window.bump.checkAuth().then((status) => {
@@ -63,34 +83,37 @@ export function App() {
   }, [appendAgentText, addToolCall, updateToolCall, setPendingPermission]);
 
   useEffect(() => {
+    return window.bump.onClosePane(() => {
+      executeAction("terminal.close");
+    });
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === "d" && !e.shiftKey) {
+      if (e.metaKey && e.key === "p") {
         e.preventDefault();
-        const { activePaneId, splitPane } = useAppStore.getState();
-        splitPane(activePaneId, "horizontal");
+        setPaletteOpen((prev) => !prev);
+        return;
       }
 
-      if (e.metaKey && e.key === "d" && e.shiftKey) {
+      if (e.metaKey && e.key >= "1" && e.key <= "9") {
         e.preventDefault();
-        const { activePaneId, splitPane } = useAppStore.getState();
-        splitPane(activePaneId, "vertical");
-      }
-
-      if (e.metaKey && e.key === "i") {
-        e.preventDefault();
-        const store = useAppStore.getState();
-        store.toggleMode();
-        if (store.mode === "agent") {
-          terminalRegistry.focusTerminal(store.activePaneId);
+        const index = parseInt(e.key, 10) - 1;
+        const { workspaces, switchWorkspace } = useAppStore.getState();
+        if (index < workspaces.length) {
+          switchWorkspace(workspaces[index].id);
         }
         return;
       }
 
-      if (e.metaKey && e.key === "w") {
-        e.preventDefault();
-        const { activePaneId, closePane } = useAppStore.getState();
-        terminalRegistry.destroy(activePaneId);
-        closePane(activePaneId);
+      const actions = getActions();
+      for (const action of actions) {
+        if (!action.shortcut) continue;
+        if (matchShortcut(e, action.shortcut)) {
+          e.preventDefault();
+          action.execute();
+          return;
+        }
       }
     };
 
@@ -117,7 +140,7 @@ export function App() {
 
   return (
     <div className="h-full flex flex-col">
-      <ModeIndicator />
+      <TabBar />
       <div className="flex-1 flex min-h-0">
         <div
           className={`flex-1 min-w-0 ${
@@ -128,10 +151,8 @@ export function App() {
         </div>
         {agentPanelVisible && (
           <div className="w-[360px] shrink-0 bg-surface-0 flex flex-col">
-            <div className="flex items-center justify-between px-3 h-8 border-b border-border">
-              <span className="text-2xs text-text-secondary">
-                agent
-              </span>
+            <div className="flex items-center justify-between px-2 h-6 border-b border-white/[0.06]">
+              <ChatMenu />
               <button
                 onClick={() =>
                   useAppStore.getState().setAgentPanelVisible(false)
@@ -149,6 +170,19 @@ export function App() {
       </div>
       {mode === "agent" && <InputBar />}
       <PermissionModal />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
+}
+
+function matchShortcut(e: KeyboardEvent, shortcut: string): boolean {
+  const parts = shortcut.toLowerCase().split("+").map((s) => s.trim());
+  const needsMeta = parts.includes("cmd");
+  const needsShift = parts.includes("shift");
+  const key = parts.filter((p) => p !== "cmd" && p !== "shift")[0];
+
+  if (!key) return false;
+  if (needsMeta !== e.metaKey) return false;
+  if (needsShift !== e.shiftKey) return false;
+  return e.key.toLowerCase() === key;
 }

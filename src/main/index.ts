@@ -1,7 +1,11 @@
-import { app, BrowserWindow, Menu, shell } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, shell } from "electron";
 import { join } from "node:path";
 import { setupIpcHandlers, cleanupAgent } from "./ipc-handlers.js";
 import { closeAllTerminals } from "./pty-manager.js";
+
+app.commandLine.appendSwitch("enable-gpu-rasterization");
+app.commandLine.appendSwitch("enable-zero-copy");
+app.commandLine.appendSwitch("ignore-gpu-blocklist");
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -50,6 +54,13 @@ function createApplicationMenu(): void {
     {
       label: "Window",
       submenu: [
+        {
+          label: "Close Pane",
+          accelerator: "CmdOrCtrl+W",
+          click: () => {
+            BrowserWindow.getFocusedWindow()?.webContents.send("close-pane");
+          },
+        },
         { role: "minimize" },
         { role: "zoom" },
         { type: "separator" },
@@ -71,7 +82,7 @@ function createWindow(): void {
     minWidth: 480,
     minHeight: 320,
     titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 8, y: 8 },
+    trafficLightPosition: { x: 10, y: 9 },
     backgroundColor: "#0a0a0a",
     show: false,
     webPreferences: {
@@ -96,6 +107,13 @@ function createWindow(): void {
   createApplicationMenu();
   setupIpcHandlers(mainWindow);
 
+  mainWindow.on("enter-full-screen", () => {
+    mainWindow?.webContents.send("fullscreen-change", true);
+  });
+  mainWindow.on("leave-full-screen", () => {
+    mainWindow?.webContents.send("fullscreen-change", false);
+  });
+
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
@@ -108,6 +126,10 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  ipcMain.handle("window:close", (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close();
+  });
+
   createWindow();
 
   app.on("activate", () => {

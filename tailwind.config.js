@@ -55,12 +55,7 @@ export default {
       borderColor: {
         DEFAULT: "rgb(var(--border) / 0.1)",
       },
-      borderRadius: {
-        sm: "3px",
-        DEFAULT: "4px",
-        md: "6px",
-        lg: "8px",
-      },
+
     },
   },
   plugins: [],

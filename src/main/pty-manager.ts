@@ -1,5 +1,10 @@
 import type { BrowserWindow } from "electron";
 import type * as PtyType from "node-pty";
+import type { WriteStream } from "node:fs";
+import { mkdirSync, createWriteStream, writeFileSync, readFileSync, unlinkSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+import { homedir } from "node:os";
 
 let pty: typeof PtyType | null = null;
 
@@ -10,11 +15,24 @@ async function getPty(): Promise<typeof PtyType> {
   return pty;
 }
 
-const BUFFER_MAX_LINES = 500;
+const BUMP_DIR = join(homedir(), ".bump");
+const TERMINALS_DIR = join(BUMP_DIR, "terminals");
+
+mkdirSync(TERMINALS_DIR, { recursive: true });
+
+function stripAnsi(text: string): string {
+  return text.replace(
+    /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g,
+    ""
+  );
+}
 
 interface ManagedTerminal {
   pty: PtyType.IPty;
-  buffer: string[];
+  logPath: string;
+  logStream: WriteStream;
+  metaPath: string;
+  title: string;
 }
 
 const terminals = new Map<string, ManagedTerminal>();
@@ -26,27 +44,6 @@ function getShell(): string {
   return "/bin/bash";
 }
 
-function stripAnsi(text: string): string {
-  return text.replace(
-    // eslint-disable-next-line no-control-regex
-    /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g,
-    ""
-  );
-}
-
-function appendToBuffer(terminal: ManagedTerminal, data: string): void {
-  const cleaned = stripAnsi(data);
-  const newLines = cleaned.split(/\r?\n/);
-  for (const line of newLines) {
-    if (line.length > 0) {
-      terminal.buffer.push(line);
-    }
-  }
-  if (terminal.buffer.length > BUFFER_MAX_LINES) {
-    terminal.buffer.splice(0, terminal.buffer.length - BUFFER_MAX_LINES);
-  }
-}
-
 export async function createTerminal(
   mainWindow: BrowserWindow,
   cwd: string
@@ -54,9 +51,20 @@ export async function createTerminal(
   const nodePty = await getPty();
   const id = `term-${++terminalCounter}`;
   const shell = getShell();
-
-  const { homedir } = await import("node:os");
   const resolvedCwd = cwd || homedir();
+
+  const logPath = join(TERMINALS_DIR, `${id}.log`);
+  const metaPath = join(TERMINALS_DIR, `${id}.json`);
+
+  writeFileSync(logPath, "");
+  writeFileSync(metaPath, JSON.stringify({
+    id,
+    cwd: resolvedCwd,
+    shell,
+    startedAt: new Date().toISOString(),
+  }));
+
+  const logStream = createWriteStream(logPath, { flags: "a" });
 
   const ptyProcess = nodePty.spawn(shell, ["-l"], {
     name: "xterm-256color",
@@ -75,13 +83,25 @@ export async function createTerminal(
     },
   });
 
-  const managed: ManagedTerminal = { pty: ptyProcess, buffer: [] };
+  const managed: ManagedTerminal = { pty: ptyProcess, logPath, logStream, metaPath, title: resolvedCwd };
   terminals.set(id, managed);
 
   ptyProcess.onData((data) => {
-    appendToBuffer(managed, data);
     if (!mainWindow.isDestroyed()) {
       mainWindow.webContents.send(`terminal:data:${id}`, data);
+    }
+
+    const titleMatch = data.match(/\x1b]0;(.+?)\x07/);
+    if (titleMatch) {
+      managed.title = titleMatch[1];
+      if (!mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("terminal:title:" + id, managed.title);
+      }
+    }
+
+    const cleaned = stripAnsi(data);
+    if (cleaned.trim().length > 0) {
+      logStream.write(cleaned);
     }
   });
 
@@ -99,31 +119,81 @@ export function writeTerminal(id: string, data: string): void {
   terminals.get(id)?.pty.write(data);
 }
 
-export function resizeTerminal(
-  id: string,
-  cols: number,
-  rows: number
-): void {
+export function resizeTerminal(id: string, cols: number, rows: number): void {
   terminals.get(id)?.pty.resize(cols, rows);
 }
 
 export function closeTerminal(id: string): void {
   const terminal = terminals.get(id);
   if (terminal) {
+    terminal.logStream.end();
     terminal.pty.kill();
+    try { unlinkSync(terminal.logPath); } catch {}
+    try { unlinkSync(terminal.metaPath); } catch {}
     terminals.delete(id);
   }
+}
+
+export function getTerminalLogPath(id: string): string | null {
+  const terminal = terminals.get(id);
+  return terminal?.logPath ?? null;
 }
 
 export function getTerminalBuffer(id: string): string {
   const terminal = terminals.get(id);
   if (!terminal) return "";
-  return terminal.buffer.join("\n");
+  try {
+    const content = readFileSync(terminal.logPath, "utf-8");
+    const lines = content.split("\n");
+    return lines.slice(-500).join("\n");
+  } catch {
+    return "";
+  }
+}
+
+export function getTerminalCwd(id: string): string | null {
+  const terminal = terminals.get(id);
+  if (!terminal) return null;
+  try {
+    const pid = terminal.pty.pid;
+    const output = execFileSync("lsof", ["-a", "-d", "cwd", "-p", String(pid), "-Fn"], {
+      encoding: "utf-8",
+      timeout: 2000,
+    });
+    for (const line of output.split("\n")) {
+      if (line.startsWith("n/")) return line.slice(1);
+    }
+  } catch {}
+  return null;
+}
+
+export function getTerminalTitle(id: string): string {
+  const terminal = terminals.get(id);
+  return terminal?.title ?? "terminal";
+}
+
+export function getAllTerminalInfo(): { id: string; logPath: string; title: string }[] {
+  return Array.from(terminals.entries()).map(([id, t]) => ({
+    id,
+    logPath: t.logPath,
+    title: t.title,
+  }));
+}
+
+export function getAllTerminalLogPaths(): { id: string; logPath: string; metaPath: string }[] {
+  return Array.from(terminals.entries()).map(([id, t]) => ({
+    id,
+    logPath: t.logPath,
+    metaPath: t.metaPath,
+  }));
 }
 
 export function closeAllTerminals(): void {
-  for (const [id, terminal] of terminals) {
+  for (const [, terminal] of terminals) {
+    terminal.logStream.end();
     terminal.pty.kill();
-    terminals.delete(id);
+    try { unlinkSync(terminal.logPath); } catch {}
+    try { unlinkSync(terminal.metaPath); } catch {}
   }
+  terminals.clear();
 }

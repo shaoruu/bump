@@ -19,7 +19,7 @@ export default defineConfig({
         ...builtinModules.map((m) => `node:${m}`),
       ],
       output: {
-        banner: `import { fileURLToPath } from 'node:url'; import { dirname } from 'node:path'; const __filename = fileURLToPath(import.meta.url); const __dirname = dirname(__filename);`,
+        banner: `import { fileURLToPath as __fileURLToPath } from 'node:url'; import { dirname as __pathDirname } from 'node:path'; const __filename = __fileURLToPath(import.meta.url); const __dirname = __pathDirname(__filename);`,
       },
     },
     minify: false,

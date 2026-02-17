@@ -99,22 +99,22 @@ function ToolCallLine({ tc }: { tc: ToolCall }) {
 
     return (
       <div className="mb-1">
-        <div className="flex items-start gap-1.5 text-2xs">
+        <div className="flex items-start gap-1.5 text-xs">
           <StatusDot status={tc.status} />
           <div className="min-w-0 flex-1">
             <span className="text-text-secondary">{tc.title}</span>
             {command && (
-              <div className="mt-0.5 rounded bg-surface-2 px-1.5 py-1 text-text-tertiary">
+              <div className="mt-0.5 bg-surface-2 px-1.5 py-1 text-text-tertiary">
                 $ {command}
               </div>
             )}
             {output && (
-              <pre className="mt-0.5 max-h-24 overflow-auto rounded bg-surface-2 px-1.5 py-1 text-2xs text-text-tertiary whitespace-pre-wrap">
+              <pre className="mt-0.5 max-h-24 overflow-auto bg-surface-2 px-1.5 py-1 text-xs text-text-tertiary whitespace-pre-wrap">
                 {output.length > 1000 ? output.slice(0, 1000) + "..." : output}
               </pre>
             )}
             {exitCode !== undefined && exitCode !== 0 && (
-              <span className="text-red-500 text-2xs">exit {exitCode}</span>
+              <span className="text-red-500 text-xs">exit {exitCode}</span>
             )}
           </div>
         </div>
@@ -127,7 +127,7 @@ function ToolCallLine({ tc }: { tc: ToolCall }) {
     const shortPath = path?.split("/").slice(-2).join("/");
 
     return (
-      <div className="mb-1 flex items-start gap-1.5 text-2xs">
+      <div className="mb-1.5 flex items-start gap-1.5 text-xs">
         <StatusDot status={tc.status} />
         <span className="text-text-secondary">
           {tc.status === "pending" ? "editing" : "edited"}
@@ -140,7 +140,7 @@ function ToolCallLine({ tc }: { tc: ToolCall }) {
   }
 
   return (
-    <div className="mb-1 flex items-start gap-1.5 text-2xs">
+    <div className="mb-1.5 flex items-start gap-1.5 text-xs">
       <StatusDot status={tc.status} />
       <span className="text-text-secondary">
         {tc.title}{subtitle}
@@ -154,7 +154,7 @@ function ToolCallGroupView({ toolCalls }: { toolCalls: ToolCall[] }) {
   const hasFailed = toolCalls.some((tc) => tc.status === "failed");
 
   return (
-    <div className="mb-1 flex items-start gap-1.5 text-2xs">
+    <div className="mb-1.5 flex items-start gap-1.5 text-xs">
       {hasFailed ? (
         <span className="text-red-500">x</span>
       ) : allDone ? (
@@ -191,28 +191,28 @@ export function AgentPanel() {
       <div className="h-full flex items-center justify-center text-text-tertiary">
         <div className="text-center text-xs">
           <p>no agent activity yet</p>
-          <p className="mt-1 text-2xs">press cmd+i to switch modes</p>
+          <p className="mt-1 text-xs">press cmd+i to switch modes</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div ref={scrollRef} className="h-full overflow-y-auto px-3 py-2">
+    <div ref={scrollRef} className="h-full overflow-y-auto p-4">
       {timeline.map((item, i) => {
         if (item.type === "message") {
           const msg = item.data;
           return (
             <div
               key={msg.id}
-              className={`mb-2 ${msg.role === "user" ? "" : ""}`}
+              className={`mb-1.5 ${msg.role === "user" ? "" : ""}`}
             >
               {msg.role === "user" ? (
-                <div className="rounded bg-surface-2 px-2 py-1.5 text-sm text-text-primary mb-2">
+                <div className="bg-surface-2 px-2 py-1.5 text-xs text-text-primary mb-1.5">
                   {msg.content}
                 </div>
               ) : (
-                <div className="text-sm text-text-primary whitespace-pre-wrap mb-2">
+                <div className="text-sm text-text-primary whitespace-pre-wrap mb-1.5">
                   {msg.content}
                 </div>
               )}

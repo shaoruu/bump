@@ -128,15 +128,16 @@ export class AgentSession {
 
   async prompt(
     text: string,
-    terminalContext?: string
+    terminalLogPaths?: string[]
   ): Promise<{ stopReason: string }> {
     if (!this.connection || !this.sessionId) {
       throw new Error("Session not started");
     }
 
     let fullPrompt = text;
-    if (terminalContext) {
-      fullPrompt = `Here is my recent terminal output for context:\n\n\`\`\`\n${terminalContext}\n\`\`\`\n\n${text}`;
+    if (terminalLogPaths && terminalLogPaths.length > 0) {
+      const pathList = terminalLogPaths.map((p) => "  - " + p).join("\n");
+      fullPrompt = "The user has terminal sessions running. Their recent output is saved at these paths (read them if relevant):\n" + pathList + "\n\n" + text;
     }
 
     const result = await this.connection.prompt({

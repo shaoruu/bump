@@ -22,7 +22,7 @@ export function PermissionModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-surface-1 border border-border rounded-lg p-4 max-w-md w-full mx-4">
+      <div className="bg-surface-1 border border-border p-4 max-w-md w-full mx-4">
         <p className="text-sm text-text-primary mb-1">
           Permission requested
         </p>
@@ -32,7 +32,7 @@ export function PermissionModal() {
         <div className="flex gap-2 justify-end">
           <button
             onClick={handleCancel}
-            className="text-xs text-text-secondary px-3 py-1.5 rounded hover:bg-surface-2 transition-colors"
+            className="text-xs text-text-secondary px-3 py-1.5 hover:bg-surface-2 transition-colors"
           >
             cancel
           </button>
@@ -40,7 +40,7 @@ export function PermissionModal() {
             <button
               key={opt.optionId}
               onClick={() => handleOption(opt.optionId)}
-              className={`text-xs px-3 py-1.5 rounded transition-colors ${
+              className={`text-xs px-3 py-1.5 transition-colors ${
                 opt.kind === "reject_once"
                   ? "text-red-400 hover:bg-red-500/10"
                   : "text-accent bg-accent/10 hover:bg-accent/20"

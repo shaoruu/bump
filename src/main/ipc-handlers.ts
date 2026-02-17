@@ -6,8 +6,13 @@ import {
   resizeTerminal,
   closeTerminal,
   getTerminalBuffer,
+  getTerminalCwd,
+  getAllTerminalLogPaths,
+  getAllTerminalInfo,
 } from "./pty-manager.js";
 import { AgentSession } from "./agent-session.js";
+import { loadGhosttyThemes } from "./theme-loader.js";
+import { getSetting, setSetting } from "./settings.js";
 
 let cachedAgentCliPath: string | null = null;
 
@@ -37,9 +42,13 @@ function getAgentCliPath(): string {
 let agentSession: AgentSession | null = null;
 
 export function setupIpcHandlers(mainWindow: BrowserWindow): void {
-  ipcMain.handle("terminal:create", async () => {
-    const cwd = process.env.HOME || process.cwd();
-    return createTerminal(mainWindow, cwd);
+  ipcMain.handle("terminal:create", async (_event, cwd?: string) => {
+    const resolvedCwd = cwd || process.env.HOME || process.cwd();
+    return createTerminal(mainWindow, resolvedCwd);
+  });
+
+  ipcMain.handle("terminal:cwd", async (_event, id: string) => {
+    return getTerminalCwd(id);
   });
 
   ipcMain.handle(
@@ -64,6 +73,10 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
     return getTerminalBuffer(id);
   });
 
+  ipcMain.handle("terminal:info", async () => {
+    return getAllTerminalInfo();
+  });
+
   ipcMain.handle("agent:start", async (_event, workspacePath: string) => {
     if (agentSession) {
       await agentSession.stop();
@@ -81,11 +94,12 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle(
     "agent:prompt",
-    async (_event, text: string, terminalContext?: string) => {
+    async (_event, text: string) => {
       if (!agentSession) {
         throw new Error("Agent not started");
       }
-      return agentSession.prompt(text, terminalContext);
+      const logPaths = getAllTerminalLogPaths().map((t) => t.logPath);
+      return agentSession.prompt(text, logPaths);
     }
   );
 
@@ -128,6 +142,21 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle("app:cwd", async () => {
     return process.env.HOME || process.cwd();
   });
+
+  ipcMain.handle("themes:list", async () => {
+    return loadGhosttyThemes();
+  });
+
+  ipcMain.handle("settings:get", async (_event, key: string) => {
+    return getSetting(key);
+  });
+
+  ipcMain.handle(
+    "settings:set",
+    async (_event, key: string, value: string) => {
+      setSetting(key, value);
+    }
+  );
 }
 
 export async function cleanupAgent(): Promise<void> {
