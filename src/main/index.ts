@@ -36,7 +36,7 @@ function createApplicationMenu(): void {
         { label: "Copy", click: () => BrowserWindow.getFocusedWindow()?.webContents.send("menu-copy") },
         { label: "Paste", click: () => BrowserWindow.getFocusedWindow()?.webContents.send("menu-paste") },
         { role: "delete" },
-        { role: "selectAll" },
+        { label: "Select All", click: () => BrowserWindow.getFocusedWindow()?.webContents.send("menu-select-all") },
       ],
     },
     {

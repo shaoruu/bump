@@ -182,6 +182,7 @@ export class InputHandler {
   private customKeyEventHandler?: (event: KeyboardEvent) => boolean;
   private getModeCallback?: (mode: number) => boolean;
   private onCopyCallback?: () => boolean;
+  private onSelectAllCallback?: () => void;
   private mouseConfig?: MouseTrackingConfig;
   private keydownListener: ((e: KeyboardEvent) => void) | null = null;
   private keypressListener: ((e: KeyboardEvent) => void) | null = null;
@@ -218,6 +219,7 @@ export class InputHandler {
    * @param customKeyEventHandler - Optional custom key event handler
    * @param getMode - Optional callback to query terminal mode state (for application cursor mode)
    * @param onCopy - Optional callback to handle copy (Cmd+C/Ctrl+C with selection)
+   * @param onSelectAll - Optional callback to handle select all (Cmd+A)
    * @param inputElement - Optional input element for beforeinput events
    * @param mouseConfig - Optional mouse tracking configuration
    */
@@ -230,6 +232,7 @@ export class InputHandler {
     customKeyEventHandler?: (event: KeyboardEvent) => boolean,
     getMode?: (mode: number) => boolean,
     onCopy?: () => boolean,
+    onSelectAll?: () => void,
     inputElement?: HTMLElement,
     mouseConfig?: MouseTrackingConfig
   ) {
@@ -242,6 +245,7 @@ export class InputHandler {
     this.customKeyEventHandler = customKeyEventHandler;
     this.getModeCallback = getMode;
     this.onCopyCallback = onCopy;
+    this.onSelectAllCallback = onSelectAll;
     this.mouseConfig = mouseConfig;
 
     // Attach event listeners
@@ -404,6 +408,15 @@ export class InputHandler {
     if (event.metaKey && event.code === 'KeyC') {
       if (this.onCopyCallback && this.onCopyCallback()) {
         event.preventDefault();
+      }
+      return;
+    }
+
+    // Handle Cmd+A for select all
+    if (event.metaKey && event.code === 'KeyA') {
+      if (this.onSelectAllCallback) {
+        event.preventDefault();
+        this.onSelectAllCallback();
       }
       return;
     }

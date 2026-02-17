@@ -122,6 +122,12 @@ const bump: BumpAPI = {
     return () => ipcRenderer.removeListener("menu-copy", handler);
   },
 
+  onMenuSelectAll: (cb: () => void) => {
+    const handler = () => cb();
+    ipcRenderer.on("menu-select-all", handler);
+    return () => ipcRenderer.removeListener("menu-select-all", handler);
+  },
+
   copyToClipboard: (text: string) => ipcRenderer.invoke("clipboard:write", text),
   readClipboard: () => ipcRenderer.invoke("clipboard:read"),
 };

@@ -254,13 +254,13 @@ export class SelectionManager {
   }
 
   /**
-   * Select all text in the terminal
+   * Select all text in the terminal (entire buffer including scrollback)
    */
   selectAll(): void {
     const dims = this.wasmTerm.getDimensions();
-    const viewportY = this.getViewportY();
-    this.selectionStart = { col: 0, absoluteRow: viewportY };
-    this.selectionEnd = { col: dims.cols - 1, absoluteRow: viewportY + dims.rows - 1 };
+    const scrollbackLength = this.wasmTerm.getScrollbackLength();
+    this.selectionStart = { col: 0, absoluteRow: 0 };
+    this.selectionEnd = { col: dims.cols - 1, absoluteRow: scrollbackLength + dims.rows - 1 };
     this.requestRender();
     this.selectionChangedEmitter.fire();
   }

@@ -461,8 +461,10 @@ export class Terminal implements ITerminalCore {
           return this.wasmTerm?.getMode(mode, false) ?? false;
         },
         () => {
-          // Handle Cmd+C copy - returns true if there was a selection to copy
           return this.copySelection();
+        },
+        () => {
+          this.selectAll();
         },
         this.textarea,
         mouseConfig

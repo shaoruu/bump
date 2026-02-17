@@ -1,0 +1,12 @@
+# Pixel Icons
+
+Use the Pixelarticons library at `src/renderer/assets/Pixelarticons_v1.9.0/SVG/` for all icons in this project.
+
+When adding new icons:
+
+1. Find the appropriate SVG in the Pixelarticons folder
+2. Add it to `src/renderer/components/Icons.tsx` as a React component
+3. Add the icon name to the `IconName` type and `iconMap`
+4. Use the `<Icon name="icon-name" />` component
+
+Do not use other icon libraries (Lucide, Heroicons, etc). Keep the pixel art aesthetic consistent.

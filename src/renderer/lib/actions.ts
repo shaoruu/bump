@@ -8,6 +8,7 @@ export interface Action {
   shortcut?: string;
   keywords?: string[];
   category: "general" | "terminal" | "agent" | "theme";
+  icon?: string;
   execute: () => void;
   hidden?: boolean;
 }
@@ -58,6 +59,7 @@ export function registerCoreActions(
     id: "palette.open",
     label: "Command Palette",
     shortcut: "Cmd+P",
+    icon: "command",
     category: "general",
     execute: openPalette,
     hidden: true,
@@ -68,6 +70,7 @@ export function registerCoreActions(
     label: "Split Terminal Right",
     shortcut: "Cmd+D",
     keywords: ["pane", "divide"],
+    icon: "split-horizontal",
     category: "terminal",
     execute: () => {
       const { activePaneId, splitPane, getActiveTerminalId } = useAppStore.getState();
@@ -87,6 +90,7 @@ export function registerCoreActions(
     label: "Split Terminal Down",
     shortcut: "Cmd+Shift+D",
     keywords: ["pane", "divide"],
+    icon: "split-vertical",
     category: "terminal",
     execute: () => {
       const { activePaneId, splitPane, getActiveTerminalId } = useAppStore.getState();
@@ -105,6 +109,7 @@ export function registerCoreActions(
     id: "workspace.new",
     label: "New Workspace",
     shortcut: "Cmd+T",
+    icon: "plus",
     category: "general",
     execute: () => {
       const { getActiveTerminalId, createWorkspace } = useAppStore.getState();
@@ -124,6 +129,7 @@ export function registerCoreActions(
     label: "Close Terminal Pane",
     shortcut: "Cmd+W",
     keywords: ["remove", "kill", "destroy"],
+    icon: "x",
     category: "terminal",
     execute: () => {
       const { activePaneId, closePane, paneTree, workspaces } = useAppStore.getState();
@@ -141,6 +147,7 @@ export function registerCoreActions(
     id: "window.reload",
     label: "Reload Window",
     keywords: ["refresh", "restart"],
+    icon: "refresh",
     category: "general",
     execute: async () => {
       await window.bump.closeAllTerminals();
@@ -152,6 +159,7 @@ export function registerCoreActions(
     id: "theme.change",
     label: "Change Theme...",
     keywords: ["color", "appearance", "dark", "light", "scheme"],
+    icon: "palette",
     category: "theme",
     execute: openThemePicker,
   });
@@ -160,6 +168,7 @@ export function registerCoreActions(
     id: "workspace.rename",
     label: "Rename Workspace",
     keywords: ["name", "title", "tab"],
+    icon: "edit",
     category: "general",
     execute: () => {
       const { activeWorkspaceId, workspaces, openPrompt, renameWorkspace } =
@@ -179,6 +188,7 @@ export function registerCoreActions(
     id: "workspace.close",
     label: "Close Workspace",
     keywords: ["remove", "delete", "tab"],
+    icon: "x",
     category: "general",
     execute: () => {
       const state = useAppStore.getState();
@@ -194,6 +204,7 @@ export function registerCoreActions(
     id: "workspace.next",
     label: "Next Workspace",
     keywords: ["tab", "switch", "right", "forward"],
+    icon: "chevron-right",
     category: "general",
     execute: () => {
       const { workspaces, activeWorkspaceId, switchWorkspace } = useAppStore.getState();
@@ -207,6 +218,7 @@ export function registerCoreActions(
     id: "workspace.prev",
     label: "Previous Workspace",
     keywords: ["tab", "switch", "left", "back"],
+    icon: "chevron-left",
     category: "general",
     execute: () => {
       const { workspaces, activeWorkspaceId, switchWorkspace } = useAppStore.getState();
@@ -221,6 +233,7 @@ export function registerCoreActions(
     label: "Clear Terminal",
     shortcut: "Cmd+K",
     keywords: ["clean", "scrollback", "reset"],
+    icon: "trash",
     category: "terminal",
     execute: () => {
       terminalRegistry.clearTerminal(useAppStore.getState().activePaneId);
@@ -231,6 +244,7 @@ export function registerCoreActions(
     id: "terminal.restart",
     label: "Restart Terminal",
     keywords: ["reboot", "refresh", "kill", "respawn"],
+    icon: "refresh",
     category: "terminal",
     execute: () => {
       terminalRegistry.restart(useAppStore.getState().activePaneId);
@@ -241,6 +255,7 @@ export function registerCoreActions(
     id: "terminal.copy-output",
     label: "Copy Terminal Output",
     keywords: ["buffer", "clipboard", "text", "copy"],
+    icon: "copy",
     category: "terminal",
     execute: () => {
       terminalRegistry.copyOutput(useAppStore.getState().activePaneId);
@@ -251,6 +266,7 @@ export function registerCoreActions(
     id: "terminal.focus-next",
     label: "Focus Next Pane",
     keywords: ["switch", "cycle", "navigate"],
+    icon: "chevron-right",
     category: "terminal",
     execute: () => {
       const { paneTree, activePaneId, setActivePaneId } = useAppStore.getState();
@@ -267,6 +283,7 @@ export function registerCoreActions(
     id: "terminal.focus-prev",
     label: "Focus Previous Pane",
     keywords: ["switch", "cycle", "navigate"],
+    icon: "chevron-left",
     category: "terminal",
     execute: () => {
       const { paneTree, activePaneId, setActivePaneId } = useAppStore.getState();
@@ -283,6 +300,7 @@ export function registerCoreActions(
     id: "terminal.close-others",
     label: "Close Other Panes",
     keywords: ["maximize", "solo", "zen", "focus"],
+    icon: "maximize",
     category: "terminal",
     execute: () => {
       const { activePaneId, closeOtherPanes } = useAppStore.getState();
@@ -297,6 +315,7 @@ export function registerCoreActions(
     id: "terminal.fix-further",
     label: "Fix Further",
     keywords: ["debug", "error", "agent", "ai", "help", "cursor"],
+    icon: "zap",
     category: "terminal",
     execute: async () => {
       const { activePaneId, splitPane, panes } = useAppStore.getState();
@@ -324,6 +343,7 @@ export function registerCoreActions(
     label: "Toggle Full Screen",
     shortcut: "Cmd+Ctrl+F",
     keywords: ["fullscreen", "maximize", "screen"],
+    icon: "maximize",
     category: "general",
     execute: () => {
       window.bump.toggleFullscreen();

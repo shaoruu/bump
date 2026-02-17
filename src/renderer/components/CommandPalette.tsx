@@ -7,6 +7,7 @@ import type { GhosttyTheme } from "../../shared/types.js";
 import { terminalRegistry } from "./TerminalRegistry.js";
 import { useAppStore } from "../store/appStore.js";
 import { setThemeCache } from "../lib/theme-cache.js";
+import { Icon, type IconName } from "./Icons.js";
 
 const THEME_CSS_VARS = [
   "--surface-0",
@@ -195,7 +196,12 @@ function ActionItem({
       onSelect={() => onSelect(action)}
       className="flex items-center justify-between px-2 py-1.5 text-sm text-text-primary cursor-pointer data-[selected=true]:bg-white/[0.06]"
     >
-      <span>{action.label}</span>
+      <span className="flex items-center gap-2">
+        {action.icon && (
+          <Icon name={action.icon as IconName} size={14} className="text-text-tertiary" />
+        )}
+        <span>{action.label}</span>
+      </span>
       {action.shortcut && (
         <span className="text-2xs text-text-tertiary">{action.shortcut}</span>
       )}

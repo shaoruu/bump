@@ -3,8 +3,9 @@ import { useAppStore } from "../store/appStore.js";
 import type { PaneNode } from "../store/appStore.js";
 import { SplitView } from "./SplitView.js";
 import { terminalRegistry } from "./TerminalRegistry.js";
-import { CopyIcon, ZapIcon, MoreHorizontalIcon } from "./Icons.js";
+import { CopyIcon, ZapIcon, MoreHorizontalIcon, CheckIcon } from "./Icons.js";
 import { Tooltip } from "./Tooltip.js";
+import { useMenuPosition, type Position } from "../hooks/useMenuPosition.js";
 
 type DropZone = "left" | "right" | "top" | "bottom" | "center";
 
@@ -83,8 +84,10 @@ function PaneSlot({ paneId }: { paneId: string }) {
   const [dropZone, setDropZone] = useState<DropZone | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [contextMenu, openContextMenu, closeContextMenu] = useMenuPosition();
+  const [headerContextMenu, openHeaderContextMenu, closeHeaderContextMenu] = useMenuPosition();
   const [isReady, setIsReady] = useState(false);
+  const [copied, setCopied] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const enterCountRef = useRef(0);
   const dropZoneRef = useRef<DropZone | null>(null);
@@ -166,12 +169,12 @@ function PaneSlot({ paneId }: { paneId: string }) {
     const slot = slotRef.current;
     if (!slot) return;
     const handler = (e: Event) => {
-      const { x, y } = (e as CustomEvent<{ x: number; y: number }>).detail;
-      setContextMenu({ x, y });
+      const { x, y } = (e as CustomEvent<Position>).detail;
+      openContextMenu({ x, y });
     };
     slot.addEventListener("terminal-context-menu", handler);
     return () => slot.removeEventListener("terminal-context-menu", handler);
-  }, []);
+  }, [openContextMenu]);
 
   const handleFocus = useCallback(() => {
     setActivePaneId(paneId);
@@ -249,6 +252,8 @@ function PaneSlot({ paneId }: { paneId: string }) {
     const info = infos.find((i) => i.id === tid);
     if (info?.logPath) {
       window.bump.copyToClipboard(info.logPath);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   }, []);
 
@@ -291,15 +296,23 @@ function PaneSlot({ paneId }: { paneId: string }) {
         draggable
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          openHeaderContextMenu({ x: e.clientX, y: e.clientY });
+        }}
       >
         <span className="flex-1 truncate">{shortTitle}</span>
         <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover/header:opacity-100 transition-opacity">
-          <Tooltip label="Copy output path">
+          <Tooltip label={copied ? "Copied!" : "Copy output path"}>
             <button
               onClick={handleCopyOutputPath}
-              className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
+              className={`p-0.5 transition-colors ${
+                copied
+                  ? "text-accent"
+                  : "text-text-tertiary hover:text-text-secondary"
+              }`}
             >
-              <CopyIcon size={12} />
+              {copied ? <CheckIcon size={12} /> : <CopyIcon size={12} />}
             </button>
           </Tooltip>
           <Tooltip label="Fix further">
@@ -340,11 +353,117 @@ function PaneSlot({ paneId }: { paneId: string }) {
           paneId={paneId}
           x={contextMenu.x}
           y={contextMenu.y}
-          onClose={() => setContextMenu(null)}
+          onClose={closeContextMenu}
+        />
+      )}
+      {headerContextMenu && (
+        <PaneHeaderContextMenu
+          paneId={paneId}
+          x={headerContextMenu.x}
+          y={headerContextMenu.y}
+          onClose={closeHeaderContextMenu}
         />
       )}
     </div>
   );
+}
+
+function usePaneActions(paneId: string, onClose: () => void) {
+  const copy = useCallback(() => {
+    const text = terminalRegistry.getSelection(paneId);
+    if (text) window.bump.copyToClipboard(text);
+    onClose();
+  }, [paneId, onClose]);
+
+  const paste = useCallback(() => {
+    window.bump.readClipboard().then((text) => {
+      if (text) terminalRegistry.pasteToTerminal(paneId, text);
+    });
+    onClose();
+  }, [paneId, onClose]);
+
+  const selectAll = useCallback(() => {
+    terminalRegistry.selectAll(paneId);
+    onClose();
+  }, [paneId, onClose]);
+
+  const clear = useCallback(() => {
+    terminalRegistry.clearTerminal(paneId);
+    onClose();
+  }, [paneId, onClose]);
+
+  const copyOutput = useCallback(() => {
+    terminalRegistry.copyOutput(paneId);
+    onClose();
+  }, [paneId, onClose]);
+
+  const splitRight = useCallback(() => {
+    const terminalId = useAppStore.getState().panes.get(paneId)?.terminalId;
+    if (terminalId) {
+      window.bump.getTerminalCwd(terminalId).then((cwd) => {
+        useAppStore.getState().splitPane(paneId, "horizontal", cwd ?? undefined);
+      });
+    } else {
+      useAppStore.getState().splitPane(paneId, "horizontal");
+    }
+    onClose();
+  }, [paneId, onClose]);
+
+  const splitDown = useCallback(() => {
+    const terminalId = useAppStore.getState().panes.get(paneId)?.terminalId;
+    if (terminalId) {
+      window.bump.getTerminalCwd(terminalId).then((cwd) => {
+        useAppStore.getState().splitPane(paneId, "vertical", cwd ?? undefined);
+      });
+    } else {
+      useAppStore.getState().splitPane(paneId, "vertical");
+    }
+    onClose();
+  }, [paneId, onClose]);
+
+  const closePane = useCallback(() => {
+    const { paneTree, workspaces } = useAppStore.getState();
+    if (paneTree.type === "leaf" && workspaces.length <= 1) {
+      terminalRegistry.destroy(paneId);
+      window.bump.closeWindow();
+      onClose();
+      return;
+    }
+    terminalRegistry.destroy(paneId);
+    useAppStore.getState().closePane(paneId);
+    onClose();
+  }, [paneId, onClose]);
+
+  return { copy, paste, selectAll, clear, copyOutput, splitRight, splitDown, closePane };
+}
+
+function useContextMenuDismiss(
+  menuRef: React.RefObject<HTMLDivElement | null>,
+  onClose: () => void,
+  excludeRef?: React.RefObject<HTMLElement | null>
+) {
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(target) &&
+        (!excludeRef?.current || !excludeRef.current.contains(target))
+      ) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuRef, onClose, excludeRef]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
 }
 
 function TerminalContextMenu({
@@ -360,24 +479,9 @@ function TerminalContextMenu({
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const hasSelection = terminalRegistry.hasSelection(paneId);
+  const actions = usePaneActions(paneId, onClose);
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  useContextMenuDismiss(menuRef, onClose);
 
   useEffect(() => {
     const menu = menuRef.current;
@@ -391,88 +495,23 @@ function TerminalContextMenu({
     }
   }, [x, y]);
 
-  const copy = () => {
-    const text = terminalRegistry.getSelection(paneId);
-    if (text) window.bump.copyToClipboard(text);
-    onClose();
-  };
-
-  const paste = () => {
-    window.bump.readClipboard().then((text) => {
-      if (text) terminalRegistry.pasteToTerminal(paneId, text);
-    });
-    onClose();
-  };
-
-  const selectAll = () => {
-    terminalRegistry.selectAll(paneId);
-    onClose();
-  };
-
-  const clear = () => {
-    terminalRegistry.clearTerminal(paneId);
-    onClose();
-  };
-
-  const copyOutput = () => {
-    terminalRegistry.copyOutput(paneId);
-    onClose();
-  };
-
-  const splitRight = () => {
-    const terminalId = useAppStore.getState().panes.get(paneId)?.terminalId;
-    if (terminalId) {
-      window.bump.getTerminalCwd(terminalId).then((cwd) => {
-        useAppStore.getState().splitPane(paneId, "horizontal", cwd ?? undefined);
-      });
-    } else {
-      useAppStore.getState().splitPane(paneId, "horizontal");
-    }
-    onClose();
-  };
-
-  const splitDown = () => {
-    const terminalId = useAppStore.getState().panes.get(paneId)?.terminalId;
-    if (terminalId) {
-      window.bump.getTerminalCwd(terminalId).then((cwd) => {
-        useAppStore.getState().splitPane(paneId, "vertical", cwd ?? undefined);
-      });
-    } else {
-      useAppStore.getState().splitPane(paneId, "vertical");
-    }
-    onClose();
-  };
-
-  const closePane = () => {
-    const { paneTree, workspaces } = useAppStore.getState();
-    if (paneTree.type === "leaf" && workspaces.length <= 1) {
-      terminalRegistry.destroy(paneId);
-      window.bump.closeWindow();
-      onClose();
-      return;
-    }
-    terminalRegistry.destroy(paneId);
-    useAppStore.getState().closePane(paneId);
-    onClose();
-  };
-
   return (
     <div
       ref={menuRef}
       style={{ left: x, top: y }}
       className="fixed z-50 bg-surface-1 border border-border py-1 min-w-[180px] shadow-lg"
     >
-      <MenuButton label="Copy" shortcut="⌘C" onClick={copy} disabled={!hasSelection} />
-      <MenuButton label="Paste" shortcut="⌘V" onClick={paste} />
-      <MenuButton label="Select All" shortcut="⌘A" onClick={selectAll} />
-      <div className="h-px bg-white/[0.06] mx-2 my-1" />
-      <MenuButton label="Clear" shortcut="⌘K" onClick={clear} />
-      <MenuButton label="Copy Output" onClick={copyOutput} />
-      <div className="h-px bg-white/[0.06] mx-2 my-1" />
-      <MenuButton label="Split Right" shortcut="⌘D" onClick={splitRight} />
-      <MenuButton label="Split Down" shortcut="⌘⇧D" onClick={splitDown} />
-      <div className="h-px bg-white/[0.06] mx-2 my-1" />
-      <MenuButton label="Close" shortcut="⌘W" onClick={closePane} />
+      <MenuButton label="Copy" shortcut="⌘C" onClick={actions.copy} disabled={!hasSelection} />
+      <MenuButton label="Paste" shortcut="⌘V" onClick={actions.paste} />
+      <MenuButton label="Select All" shortcut="⌘A" onClick={actions.selectAll} />
+      <MenuDivider />
+      <MenuButton label="Clear" shortcut="⌘K" onClick={actions.clear} />
+      <MenuButton label="Copy Output" onClick={actions.copyOutput} />
+      <MenuDivider />
+      <MenuButton label="Split Right" shortcut="⌘D" onClick={actions.splitRight} />
+      <MenuButton label="Split Down" shortcut="⌘⇧D" onClick={actions.splitDown} />
+      <MenuDivider />
+      <MenuButton label="Close" shortcut="⌘W" onClick={actions.closePane} />
     </div>
   );
 }
@@ -493,6 +532,51 @@ function DropOverlay({ zone }: { zone: DropZone }) {
   );
 }
 
+function PaneHeaderContextMenu({
+  paneId,
+  x,
+  y,
+  onClose,
+}: {
+  paneId: string;
+  x: number;
+  y: number;
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const actions = usePaneActions(paneId, onClose);
+
+  useContextMenuDismiss(menuRef, onClose);
+
+  useEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+      menu.style.left = `${x - rect.width}px`;
+    }
+    if (rect.bottom > window.innerHeight) {
+      menu.style.top = `${y - rect.height}px`;
+    }
+  }, [x, y]);
+
+  return (
+    <div
+      ref={menuRef}
+      style={{ left: x, top: y }}
+      className="fixed z-50 bg-surface-1 border border-border py-1 min-w-[160px] shadow-lg"
+    >
+      <MenuButton label="Clear" shortcut="⌘K" onClick={actions.clear} />
+      <MenuButton label="Copy Output" onClick={actions.copyOutput} />
+      <MenuDivider />
+      <MenuButton label="Split Right" shortcut="⌘D" onClick={actions.splitRight} />
+      <MenuButton label="Split Down" shortcut="⌘⇧D" onClick={actions.splitDown} />
+      <MenuDivider />
+      <MenuButton label="Close" shortcut="⌘W" onClick={actions.closePane} />
+    </div>
+  );
+}
+
 function PaneMenu({
   paneId,
   triggerRef,
@@ -503,78 +587,25 @@ function PaneMenu({
   onClose: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const actions = usePaneActions(paneId, onClose);
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(target) &&
-        (!triggerRef.current || !triggerRef.current.contains(target))
-      ) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose, triggerRef]);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  const splitRight = () => {
-    const terminalId = useAppStore.getState().panes.get(paneId)?.terminalId;
-    if (terminalId) {
-      window.bump.getTerminalCwd(terminalId).then((cwd) => {
-        useAppStore.getState().splitPane(paneId, "horizontal", cwd ?? undefined);
-      });
-    } else {
-      useAppStore.getState().splitPane(paneId, "horizontal");
-    }
-    onClose();
-  };
-
-  const splitDown = () => {
-    const terminalId = useAppStore.getState().panes.get(paneId)?.terminalId;
-    if (terminalId) {
-      window.bump.getTerminalCwd(terminalId).then((cwd) => {
-        useAppStore.getState().splitPane(paneId, "vertical", cwd ?? undefined);
-      });
-    } else {
-      useAppStore.getState().splitPane(paneId, "vertical");
-    }
-    onClose();
-  };
-
-  const closePane = () => {
-    const { paneTree, workspaces } = useAppStore.getState();
-    if (paneTree.type === "leaf" && workspaces.length <= 1) {
-      terminalRegistry.destroy(paneId);
-      window.bump.closeWindow();
-      onClose();
-      return;
-    }
-    terminalRegistry.destroy(paneId);
-    useAppStore.getState().closePane(paneId);
-    onClose();
-  };
+  useContextMenuDismiss(menuRef, onClose, triggerRef);
 
   return (
     <div
       ref={menuRef}
       className="absolute top-6 right-0 z-50 bg-surface-1 border border-border py-1 min-w-[160px] shadow-lg"
     >
-      <MenuButton label="Split Right" shortcut="⌘D" onClick={splitRight} />
-      <MenuButton label="Split Down" shortcut="⌘⇧D" onClick={splitDown} />
-      <div className="h-px bg-white/[0.06] mx-2 my-1" />
-      <MenuButton label="Close" shortcut="⌘W" onClick={closePane} />
+      <MenuButton label="Split Right" shortcut="⌘D" onClick={actions.splitRight} />
+      <MenuButton label="Split Down" shortcut="⌘⇧D" onClick={actions.splitDown} />
+      <MenuDivider />
+      <MenuButton label="Close" shortcut="⌘W" onClick={actions.closePane} />
     </div>
   );
+}
+
+function MenuDivider() {
+  return <div className="h-px bg-white/[0.06] mx-2 my-1" />;
 }
 
 function MenuButton({

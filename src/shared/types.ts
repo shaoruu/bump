@@ -143,6 +143,7 @@ export interface BumpAPI {
   onClosePane: (cb: () => void) => () => void;
   onMenuPaste: (cb: () => void) => () => void;
   onMenuCopy: (cb: () => void) => () => void;
+  onMenuSelectAll: (cb: () => void) => () => void;
 
   copyToClipboard: (text: string) => Promise<void>;
   readClipboard: () => Promise<string>;

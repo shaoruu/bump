@@ -1,0 +1,12 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="15" y="19" width="9" height="1" fill="currentColor"/>
+<rect x="22" y="18" width="1" height="1" fill="currentColor"/>
+<rect width="1" height="1" transform="matrix(1 0 0 -1 22 21)" fill="currentColor"/>
+<rect x="21" y="17" width="1" height="1" fill="currentColor"/>
+<rect width="1" height="4" transform="matrix(1 0 0 -1 21 22)" fill="currentColor"/>
+<rect x="20" y="16" width="1" height="1" fill="currentColor"/>
+<rect width="1" height="6" transform="matrix(1 0 0 -1 20 23)" fill="currentColor"/>
+<rect x="19" y="15" width="1" height="1" fill="currentColor"/>
+<rect width="1" height="8" transform="matrix(1 0 0 -1 19 24)" fill="currentColor"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M2 4H22V14H14V20H2V4ZM4 6H5V7H4V6ZM6 8H5V7H6V8ZM7 9H6V8H7V9ZM8 10H7V9H8V10ZM9 11H8V10H9V11ZM10 12H9V11H10V12ZM11 13H10V12H11V13ZM13 13V14H11V13H13ZM14 12V13H13V12H14ZM15 11V12H14V11H15ZM16 10V11H15V10H16ZM17 9V10H16V9H17ZM18 8V9H17V8H18ZM19 7V8H18V7H19ZM19 7V6H20V7H19Z" fill="currentColor"/>
+</svg>

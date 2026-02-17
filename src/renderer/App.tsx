@@ -76,6 +76,13 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    return window.bump.onMenuSelectAll(() => {
+      const { activePaneId } = useAppStore.getState();
+      terminalRegistry.selectAll(activePaneId);
+    });
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.metaKey && e.key === "p") {
         e.preventDefault();
