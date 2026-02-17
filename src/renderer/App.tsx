@@ -48,11 +48,10 @@ export function App() {
 
       const match = shortcut.match(/^Cmd\+(\d)$/);
       if (match) {
-        const index = parseInt(match[1], 10) - 1;
         const { workspaces, switchWorkspace } = useAppStore.getState();
-        if (index < workspaces.length) {
-          switchWorkspace(workspaces[index].id);
-        }
+        if (workspaces.length === 0) return;
+        const index = Math.min(parseInt(match[1], 10) - 1, workspaces.length - 1);
+        switchWorkspace(workspaces[index].id);
         return;
       }
 
