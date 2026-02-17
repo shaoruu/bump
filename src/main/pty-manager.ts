@@ -33,6 +33,8 @@ interface ManagedTerminal {
   logStream: WriteStream;
   metaPath: string;
   title: string;
+  ipcBuffer: string;
+  ipcFlushScheduled: boolean;
 }
 
 const terminals = new Map<string, ManagedTerminal>();
@@ -83,12 +85,25 @@ export async function createTerminal(
     },
   });
 
-  const managed: ManagedTerminal = { pty: ptyProcess, logPath, logStream, metaPath, title: resolvedCwd };
+  const managed: ManagedTerminal = {
+    pty: ptyProcess, logPath, logStream, metaPath, title: resolvedCwd,
+    ipcBuffer: "", ipcFlushScheduled: false,
+  };
   terminals.set(id, managed);
 
+  const flushIpc = () => {
+    managed.ipcFlushScheduled = false;
+    if (managed.ipcBuffer.length > 0 && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(`terminal:data:${id}`, managed.ipcBuffer);
+      managed.ipcBuffer = "";
+    }
+  };
+
   ptyProcess.onData((data) => {
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(`terminal:data:${id}`, data);
+    managed.ipcBuffer += data;
+    if (!managed.ipcFlushScheduled) {
+      managed.ipcFlushScheduled = true;
+      setImmediate(flushIpc);
     }
 
     const titleMatch = data.match(/\x1b]0;(.+?)\x07/);

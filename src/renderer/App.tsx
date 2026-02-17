@@ -7,6 +7,7 @@ import { PermissionModal } from "./components/PermissionModal.js";
 import { LoginView } from "./components/LoginView.js";
 import { ChatMenu } from "./components/ChatMenu.js";
 import { CommandPalette } from "./components/CommandPalette.js";
+import { PromptDialog } from "./components/Dialog.js";
 import { useAppStore } from "./store/appStore.js";
 import { registerCoreActions, getActions, executeAction } from "./lib/actions.js";
 
@@ -21,6 +22,8 @@ export function App() {
   const setPendingPermission = useAppStore((s) => s.setPendingPermission);
   const agentPanelVisible = useAppStore((s) => s.agentPanelVisible);
   const mode = useAppStore((s) => s.mode);
+  const promptDialog = useAppStore((s) => s.promptDialog);
+  const closePrompt = useAppStore((s) => s.closePrompt);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteMode, setPaletteMode] = useState<"actions" | "themes">("actions");
@@ -171,6 +174,17 @@ export function App() {
       {mode === "agent" && <InputBar />}
       <PermissionModal />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      {promptDialog && (
+        <PromptDialog
+          open
+          title={promptDialog.title}
+          defaultValue={promptDialog.defaultValue}
+          placeholder={promptDialog.placeholder}
+          submitLabel={promptDialog.submitLabel}
+          onSubmit={promptDialog.onSubmit}
+          onClose={closePrompt}
+        />
+      )}
     </div>
   );
 }

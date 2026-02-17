@@ -131,6 +131,7 @@ class TerminalRegistry {
       if (e.metaKey && e.key === "p") return false;
       if (e.metaKey && e.key === "n") return false;
       if (e.metaKey && e.key === "t") return false;
+      if (e.metaKey && e.key === "k") return false;
       if (e.metaKey && e.key >= "1" && e.key <= "9") return false;
       return true;
     });
@@ -261,6 +262,26 @@ class TerminalRegistry {
 
   getCurrentTheme(): Record<string, string> | null {
     return this.currentTheme;
+  }
+
+  clearTerminal(paneId: string) {
+    const entry = this.entries.get(paneId);
+    if (!entry?.terminal || !entry.terminalId) return;
+    entry.terminal.clear();
+    window.bump.writeTerminal(entry.terminalId, "\x0c");
+  }
+
+  copyOutput(paneId: string) {
+    const entry = this.entries.get(paneId);
+    if (!entry?.terminal) return;
+    const buffer = entry.terminal.buffer.active;
+    const lines: string[] = [];
+    for (let i = 0; i < buffer.length; i++) {
+      const line = buffer.getLine(i);
+      if (line) lines.push(line.translateToString(true));
+    }
+    const text = lines.join("\n").trimEnd();
+    if (text) navigator.clipboard.writeText(text);
   }
 
   focusTerminal(paneId: string) {

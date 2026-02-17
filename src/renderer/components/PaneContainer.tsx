@@ -7,7 +7,7 @@ import { terminalRegistry } from "./TerminalRegistry.js";
 type DropZone = "left" | "right" | "top" | "bottom" | "center";
 
 let currentDragPaneId: string | null = null;
-const pendingInputs = new Map<string, string>();
+export const pendingInputs = new Map<string, string>();
 
 function countLeaves(node: PaneNode): number {
   if (node.type === "leaf") return 1;
@@ -118,6 +118,14 @@ function PaneSlot({ paneId }: { paneId: string }) {
       }
     };
   }, [paneId, setTerminalId]);
+
+  useEffect(() => {
+    if (isActive) {
+      requestAnimationFrame(() => {
+        terminalRegistry.focusTerminal(paneId);
+      });
+    }
+  }, [isActive, paneId]);
 
   useEffect(() => {
     const check = setInterval(() => {

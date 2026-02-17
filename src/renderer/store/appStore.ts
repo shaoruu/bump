@@ -48,6 +48,14 @@ interface Pane {
   initialCwd?: string;
 }
 
+interface PromptDialogConfig {
+  title: string;
+  defaultValue: string;
+  placeholder?: string;
+  submitLabel?: string;
+  onSubmit: (value: string) => void;
+}
+
 interface AppState {
   workspaces: Workspace[];
   activeWorkspaceId: string;
@@ -56,6 +64,10 @@ interface AppState {
   closeWorkspace: (id: string) => void;
   renameWorkspace: (id: string, name: string) => void;
   reorderWorkspaces: (ids: string[]) => void;
+
+  promptDialog: PromptDialogConfig | null;
+  openPrompt: (config: PromptDialogConfig) => void;
+  closePrompt: () => void;
 
   panes: Map<string, Pane>;
   paneTree: PaneNode;
@@ -88,6 +100,7 @@ interface AppState {
 
   splitPane: (paneId: string, direction: SplitDirection, cwd?: string) => string;
   closePane: (paneId: string) => void;
+  closeOtherPanes: (keepPaneId: string) => string[];
   updateSplitSizes: (splitId: string, sizes: [number, number]) => void;
   swapPanes: (paneIdA: string, paneIdB: string) => void;
   movePane: (
@@ -181,7 +194,7 @@ function replaceSplitWithNode(
   };
 }
 
-function collectLeafIds(node: PaneNode): string[] {
+export function collectLeafIds(node: PaneNode): string[] {
   if (node.type === "leaf") return [node.paneId];
   return [
     ...collectLeafIds(node.children[0]),
@@ -279,6 +292,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       const reordered = ids.map((id) => map.get(id)!).filter(Boolean);
       return { workspaces: reordered };
     }),
+
+  promptDialog: null,
+  openPrompt: (config) => set({ promptDialog: config }),
+  closePrompt: () => set({ promptDialog: null }),
 
   panes: new Map([[initialPaneId, { id: initialPaneId, terminalId: null }]]),
   paneTree: { type: "leaf", paneId: initialPaneId },
@@ -442,6 +459,25 @@ export const useAppStore = create<AppState>((set, get) => ({
       paneTree: newTree,
       activePaneId: newActivePaneId,
     });
+  },
+
+  closeOtherPanes: (keepPaneId) => {
+    const state = get();
+    const allLeafIds = collectLeafIds(state.paneTree);
+    const panes = new Map(state.panes);
+    const closedIds: string[] = [];
+    for (const id of allLeafIds) {
+      if (id !== keepPaneId) {
+        panes.delete(id);
+        closedIds.push(id);
+      }
+    }
+    set({
+      panes,
+      paneTree: { type: "leaf", paneId: keepPaneId },
+      activePaneId: keepPaneId,
+    });
+    return closedIds;
   },
 
   updateSplitSizes: (splitId, sizes) =>

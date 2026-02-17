@@ -1,10 +1,9 @@
 import { useAppStore } from "../store/appStore.js";
+import { Dialog } from "./Dialog.js";
 
 export function PermissionModal() {
   const pendingPermission = useAppStore((s) => s.pendingPermission);
   const setPendingPermission = useAppStore((s) => s.setPendingPermission);
-
-  if (!pendingPermission) return null;
 
   const handleOption = (optionId: string) => {
     window.bump.respondToPermission({
@@ -21,13 +20,13 @@ export function PermissionModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <Dialog open={!!pendingPermission} onClose={handleCancel}>
       <div className="bg-surface-1 border border-border p-4 max-w-md w-full mx-4">
         <p className="text-sm text-text-primary mb-1">
           Permission requested
         </p>
         <p className="text-xs text-text-secondary mb-4">
-          {pendingPermission.toolCall.title}
+          {pendingPermission?.toolCall.title}
         </p>
         <div className="flex gap-2 justify-end">
           <button
@@ -36,7 +35,7 @@ export function PermissionModal() {
           >
             cancel
           </button>
-          {pendingPermission.options.map((opt) => (
+          {pendingPermission?.options.map((opt) => (
             <button
               key={opt.optionId}
               onClick={() => handleOption(opt.optionId)}
@@ -51,6 +50,6 @@ export function PermissionModal() {
           ))}
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
