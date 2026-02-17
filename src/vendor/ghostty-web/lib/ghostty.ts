@@ -519,8 +519,9 @@ export class GhosttyTerminal {
 
     for (let i = 0; i < count; i++) {
       const cellOffset = i * GhosttyTerminal.CELL_SIZE;
+      const cp = view.getUint32(cellOffset, true);
       cells.push({
-        codepoint: view.getUint32(cellOffset, true),
+        codepoint: GhosttyTerminal.isValidCodepoint(cp) ? cp : 0,
         fg_r: u8[cellOffset + 4],
         fg_g: u8[cellOffset + 5],
         fg_b: u8[cellOffset + 6],
@@ -615,6 +616,10 @@ export class GhosttyTerminal {
     }
   }
 
+  private static isValidCodepoint(cp: number): boolean {
+    return cp >= 0 && cp <= 0x10ffff && (cp < 0xd800 || cp > 0xdfff);
+  }
+
   private parseCellsIntoPool(ptr: number, count: number): void {
     const buffer = this.memory.buffer;
     const u8 = new Uint8Array(buffer, ptr, count * GhosttyTerminal.CELL_SIZE);
@@ -623,7 +628,8 @@ export class GhosttyTerminal {
     for (let i = 0; i < count; i++) {
       const offset = i * GhosttyTerminal.CELL_SIZE;
       const cell = this.cellPool[i];
-      cell.codepoint = view.getUint32(offset, true);
+      const cp = view.getUint32(offset, true);
+      cell.codepoint = GhosttyTerminal.isValidCodepoint(cp) ? cp : 0;
       cell.fg_r = u8[offset + 4];
       cell.fg_g = u8[offset + 5];
       cell.fg_b = u8[offset + 6];
@@ -676,7 +682,8 @@ export class GhosttyTerminal {
   getGraphemeString(row: number, col: number): string {
     const codepoints = this.getGrapheme(row, col);
     if (!codepoints || codepoints.length === 0) return ' ';
-    return String.fromCodePoint(...codepoints);
+    const valid = codepoints.filter(GhosttyTerminal.isValidCodepoint);
+    return valid.length > 0 ? String.fromCodePoint(...valid) : ' ';
   }
 
   /**
@@ -713,7 +720,8 @@ export class GhosttyTerminal {
   getScrollbackGraphemeString(offset: number, col: number): string {
     const codepoints = this.getScrollbackGrapheme(offset, col);
     if (!codepoints || codepoints.length === 0) return ' ';
-    return String.fromCodePoint(...codepoints);
+    const valid = codepoints.filter(GhosttyTerminal.isValidCodepoint);
+    return valid.length > 0 ? String.fromCodePoint(...valid) : ' ';
   }
 
   private invalidateBuffers(): void {

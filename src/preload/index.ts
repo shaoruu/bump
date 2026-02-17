@@ -99,12 +99,20 @@ const bump: BumpAPI = {
 
   closeWindow: () => ipcRenderer.invoke("window:close"),
 
+  toggleFullscreen: () => ipcRenderer.invoke("window:toggle-fullscreen"),
+
   openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
 
   onClosePane: (cb: () => void) => {
     const handler = () => cb();
     ipcRenderer.on("close-pane", handler);
     return () => ipcRenderer.removeListener("close-pane", handler);
+  },
+
+  onMenuPaste: (cb: () => void) => {
+    const handler = () => cb();
+    ipcRenderer.on("menu-paste", handler);
+    return () => ipcRenderer.removeListener("menu-paste", handler);
   },
 };
 

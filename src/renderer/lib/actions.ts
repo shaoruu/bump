@@ -361,6 +361,17 @@ export function registerCoreActions(
   });
 
   registerAction({
+    id: "window.fullscreen",
+    label: "Toggle Full Screen",
+    shortcut: "Cmd+Ctrl+F",
+    keywords: ["fullscreen", "maximize", "screen"],
+    category: "general",
+    execute: () => {
+      window.bump.toggleFullscreen();
+    },
+  });
+
+  registerAction({
     id: "agent.panel.toggle",
     label: "Toggle Agent Panel",
     keywords: ["show", "hide", "sidebar", "ai"],

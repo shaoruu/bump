@@ -384,8 +384,13 @@ export class InputHandler {
       }
     }
 
-    // Allow Ctrl+V and Cmd+V to trigger paste event (don't preventDefault)
     if ((event.ctrlKey || event.metaKey) && event.code === 'KeyV') {
+      event.preventDefault();
+      navigator.clipboard.readText().then((text) => {
+        if (text) {
+          this.emitPasteData(text);
+        }
+      }).catch(() => {});
       return;
     }
 
@@ -397,9 +402,6 @@ export class InputHandler {
     // Handle Cmd+C for copy (on Mac, Cmd+C should copy, not send interrupt)
     // Note: Ctrl+C on all platforms sends interrupt signal (0x03)
     if (event.metaKey && event.code === 'KeyC') {
-      // Try to copy selection via callback
-      // If there's a selection and copy succeeds, prevent default
-      // If no selection, let it fall through (browser may have other text selected)
       if (this.onCopyCallback && this.onCopyCallback()) {
         event.preventDefault();
       }
@@ -431,7 +433,7 @@ export class InputHandler {
 
       switch (key) {
         case Key.ENTER:
-          simpleOutput = '\r'; // Carriage return
+          simpleOutput = mods === Mods.SHIFT ? '\n' : '\r';
           break;
         case Key.TAB:
           if (mods === Mods.SHIFT) {
@@ -566,23 +568,14 @@ export class InputHandler {
   private handlePaste(event: ClipboardEvent): void {
     if (this.isDisposed) return;
 
-    // Prevent default paste behavior
     event.preventDefault();
     event.stopPropagation();
 
-    // Get clipboard data
     const clipboardData = event.clipboardData;
-    if (!clipboardData) {
-      console.warn('No clipboard data available');
-      return;
-    }
+    if (!clipboardData) return;
 
-    // Get text from clipboard
     const text = clipboardData.getData('text/plain');
-    if (!text) {
-      console.warn('No text in clipboard');
-      return;
-    }
+    if (!text) return;
 
     if (this.shouldIgnorePasteEvent(text, 'paste')) {
       return;

@@ -10,6 +10,7 @@ import { CommandPalette } from "./components/CommandPalette.js";
 import { PromptDialog } from "./components/Dialog.js";
 import { useAppStore } from "./store/appStore.js";
 import { registerCoreActions, getActions, executeAction } from "./lib/actions.js";
+import { terminalRegistry } from "./components/TerminalRegistry.js";
 
 export function App() {
   const isAuthChecked = useAppStore((s) => s.isAuthChecked);
@@ -87,6 +88,17 @@ export function App() {
   useEffect(() => {
     return window.bump.onClosePane(() => {
       executeAction("terminal.close");
+    });
+  }, []);
+
+  useEffect(() => {
+    return window.bump.onMenuPaste(() => {
+      navigator.clipboard.readText().then((text) => {
+        if (text) {
+          const { activePaneId } = useAppStore.getState();
+          terminalRegistry.pasteToTerminal(activePaneId, text);
+        }
+      }).catch(() => {});
     });
   }, []);
 
@@ -197,10 +209,12 @@ function matchShortcut(e: KeyboardEvent, shortcut: string): boolean {
   const parts = shortcut.toLowerCase().split("+").map((s) => s.trim());
   const needsMeta = parts.includes("cmd");
   const needsShift = parts.includes("shift");
-  const key = parts.filter((p) => p !== "cmd" && p !== "shift")[0];
+  const needsCtrl = parts.includes("ctrl");
+  const key = parts.filter((p) => p !== "cmd" && p !== "shift" && p !== "ctrl")[0];
 
   if (!key) return false;
   if (needsMeta !== e.metaKey) return false;
   if (needsShift !== e.shiftKey) return false;
+  if (needsCtrl !== e.ctrlKey) return false;
   return e.key.toLowerCase() === key;
 }

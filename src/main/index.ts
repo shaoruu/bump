@@ -34,8 +34,7 @@ function createApplicationMenu(): void {
         { type: "separator" },
         { role: "cut" },
         { role: "copy" },
-        { role: "paste" },
-        { role: "pasteAndMatchStyle" },
+        { label: "Paste", click: () => BrowserWindow.getFocusedWindow()?.webContents.send("menu-paste") },
         { role: "delete" },
         { role: "selectAll" },
       ],
@@ -49,7 +48,13 @@ function createApplicationMenu(): void {
         { role: "zoomIn" },
         { role: "zoomOut" },
         { type: "separator" },
-        { role: "togglefullscreen" },
+        {
+          label: "Toggle Full Screen",
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.setFullScreen(!win.isFullScreen());
+          },
+        },
       ],
     },
     {
@@ -82,6 +87,7 @@ function createWindow(): void {
     height: 600,
     minWidth: 480,
     minHeight: 320,
+    fullscreenable: true,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 10, y: 9 },
     backgroundColor: "#0a0a0a",
@@ -131,6 +137,11 @@ app.whenReady().then(() => {
     BrowserWindow.fromWebContents(event.sender)?.close();
   });
 
+  ipcMain.handle("window:toggle-fullscreen", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) win.setFullScreen(!win.isFullScreen());
+  });
+
   ipcMain.handle("shell:open-external", (_event, url: string) => {
     if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("mailto:")) {
       return shell.openExternal(url);
@@ -155,7 +166,7 @@ app.on("window-all-closed", async () => {
 });
 
 app.on("before-quit", async (event) => {
-  if (quitConfirmed) {
+  if (quitConfirmed || process.env.VITE_DEV_SERVER_URL) {
     closeAllTerminals();
     await cleanupAgent();
     return;

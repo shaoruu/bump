@@ -1,0 +1,7 @@
+---
+description: Avoid double-fire from Electron menu roles
+globs: ["src/main/**/*.ts"]
+alwaysApply: true
+---
+
+Never use Electron menu `role` or `accelerator` for shortcuts the renderer also handles -- roles dispatch both a native action AND a keydown event, causing double-fire.

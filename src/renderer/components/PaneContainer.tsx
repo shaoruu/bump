@@ -4,6 +4,7 @@ import type { PaneNode } from "../store/appStore.js";
 import { SplitView } from "./SplitView.js";
 import { terminalRegistry } from "./TerminalRegistry.js";
 import { CopyIcon, ZapIcon, MoreHorizontalIcon } from "./Icons.js";
+import { Tooltip } from "./Tooltip.js";
 
 type DropZone = "left" | "right" | "top" | "bottom" | "center";
 
@@ -263,34 +264,40 @@ function PaneSlot({ paneId }: { paneId: string }) {
       onDrop={handleDrop}
     >
       <div
-        className="h-6 shrink-0 flex items-center px-2 bg-surface-1 text-2xs text-text-tertiary select-none border-b border-white/[0.06] cursor-grab active:cursor-grabbing group/header"
+        className={`h-6 shrink-0 flex items-center px-2 text-2xs select-none border-b border-white/[0.06] bg-surface-1 cursor-grab active:cursor-grabbing group/header ${
+          isActive ? "text-accent" : "text-text-tertiary"
+        }`}
         draggable
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
         <span className="flex-1 truncate">{shortTitle}</span>
         <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover/header:opacity-100 transition-opacity">
-          <button
-            onClick={handleCopyOutputPath}
-            className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
-            title="Copy output path"
-          >
-            <CopyIcon size={12} />
-          </button>
-          <button
-            onClick={handleFixFurther}
-            className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
-            title="Fix further"
-          >
-            <ZapIcon size={12} />
-          </button>
-          <button
-            ref={menuButtonRef}
-            onClick={() => setMenuOpen((prev) => !prev)}
-            className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
-          >
-            <MoreHorizontalIcon size={12} />
-          </button>
+          <Tooltip label="Copy output path">
+            <button
+              onClick={handleCopyOutputPath}
+              className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
+            >
+              <CopyIcon size={12} />
+            </button>
+          </Tooltip>
+          <Tooltip label="Fix further">
+            <button
+              onClick={handleFixFurther}
+              className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
+            >
+              <ZapIcon size={12} />
+            </button>
+          </Tooltip>
+          <Tooltip label="More">
+            <button
+              ref={menuButtonRef}
+              onClick={() => setMenuOpen((prev) => !prev)}
+              className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
+            >
+              <MoreHorizontalIcon size={12} />
+            </button>
+          </Tooltip>
         </div>
       </div>
       <div ref={slotRef} className="flex-1 min-h-0" />

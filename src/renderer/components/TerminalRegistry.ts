@@ -121,6 +121,7 @@ class TerminalRegistry {
       if (e.metaKey && e.key === "t") return true;
       if (e.metaKey && e.key === "k") return true;
       if (e.metaKey && e.key >= "1" && e.key <= "9") return true;
+      if (e.metaKey && e.ctrlKey && e.key === "f") return true;
       return false;
     });
 
@@ -259,6 +260,13 @@ class TerminalRegistry {
     }
     const text = lines.join("\n").trimEnd();
     if (text) navigator.clipboard.writeText(text);
+  }
+
+  pasteToTerminal(paneId: string, text: string) {
+    const entry = this.entries.get(paneId);
+    if (entry?.terminal) {
+      entry.terminal.paste(text);
+    }
   }
 
   focusTerminal(paneId: string) {

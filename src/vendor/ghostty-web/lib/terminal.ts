@@ -721,14 +721,12 @@ export class Terminal implements ITerminalCore {
    * Focus terminal input
    */
   focus(): void {
-    if (this.isOpen && this.element) {
-      // Focus immediately for immediate keyboard/wheel event handling
-      this.element.focus();
-
-      // Also schedule a delayed focus as backup to ensure it sticks
-      // (some browsers may need this if DOM isn't fully settled)
+    if (!this.isOpen) return;
+    const target = this.textarea ?? this.element;
+    if (target) {
+      target.focus();
       setTimeout(() => {
-        this.element?.focus();
+        target?.focus();
       }, 0);
     }
   }
@@ -737,8 +735,8 @@ export class Terminal implements ITerminalCore {
    * Blur terminal (remove focus)
    */
   blur(): void {
-    if (this.isOpen && this.element) {
-      this.element.blur();
+    if (this.isOpen) {
+      (this.textarea ?? this.element)?.blur();
     }
   }
 
