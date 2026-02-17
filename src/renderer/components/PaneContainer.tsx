@@ -74,17 +74,16 @@ const PaneNodeRenderer = memo(function PaneNodeRenderer({
 });
 
 function PaneSlot({ paneId }: { paneId: string }) {
-  const activePaneId = useAppStore((s) => s.activePaneId);
+  const isActive = useAppStore((s) => s.activePaneId === paneId);
   const setActivePaneId = useAppStore((s) => s.setActivePaneId);
-  const setTerminalId = useAppStore((s) => s.setTerminalId);
   const initialCwd = useAppStore((s) => s.panes.get(paneId)?.initialCwd);
-  const isActive = activePaneId === paneId;
   const slotRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState("terminal " + paneId);
   const terminalIdRef = useRef<string | null>(null);
   const [dropZone, setDropZone] = useState<DropZone | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const enterCountRef = useRef(0);
   const dropZoneRef = useRef<DropZone | null>(null);
@@ -99,8 +98,9 @@ function PaneSlot({ paneId }: { paneId: string }) {
       paneId,
       {
         onReady: (terminalId) => {
-          setTerminalId(paneId, terminalId);
+          useAppStore.getState().setTerminalId(paneId, terminalId);
           terminalIdRef.current = terminalId;
+          setIsReady(true);
           const input = pendingInputs.get(paneId);
           if (input) {
             pendingInputs.delete(paneId);
@@ -114,21 +114,27 @@ function PaneSlot({ paneId }: { paneId: string }) {
       initialCwd
     );
 
-    slot.appendChild(entry.container);
+    if (entry.terminalId) setIsReady(true);
 
-    if (entry.terminal?.wasmTerm && entry.terminal.renderer) {
-      const renderer = entry.terminal.renderer;
-      (renderer as { render: Function }).render(
-        entry.terminal.wasmTerm, true, entry.terminal.viewportY, entry.terminal
-      );
-    }
+    slot.appendChild(entry.container);
 
     return () => {
       if (entry.container.parentNode === slot) {
         slot.removeChild(entry.container);
       }
     };
-  }, [paneId, setTerminalId, themeVersion]);
+  }, [paneId]);
+
+  useEffect(() => {
+    if (themeVersion === 0) return;
+    const entry = terminalRegistry.get(paneId);
+    if (entry?.terminal?.wasmTerm && entry.terminal.renderer) {
+      const renderer = entry.terminal.renderer;
+      (renderer as { render: Function }).render(
+        entry.terminal.wasmTerm, true, entry.terminal.viewportY, entry.terminal
+      );
+    }
+  }, [paneId, themeVersion]);
 
   useEffect(() => {
     if (isActive) {
@@ -301,6 +307,11 @@ function PaneSlot({ paneId }: { paneId: string }) {
         </div>
       </div>
       <div ref={slotRef} className="flex-1 min-h-0" />
+      {!isReady && (
+        <div className="absolute inset-x-0 top-6 bottom-0 z-20 flex items-center justify-center bg-surface-0">
+          <div className="w-1.5 h-3.5 bg-accent/40 animate-pulse" />
+        </div>
+      )}
       {dropZone && <DropOverlay zone={dropZone} />}
       {menuOpen && (
         <PaneMenu

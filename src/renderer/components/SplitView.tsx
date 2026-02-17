@@ -71,7 +71,7 @@ export function SplitView({
         className={`
           group relative
           ${isSideBySide ? "w-px" : "h-px"}
-          bg-white/[0.06]
+          bg-white/10
           hover:bg-white/[0.15]
           active:bg-accent/40
           transition-colors

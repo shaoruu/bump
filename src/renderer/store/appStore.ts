@@ -48,6 +48,17 @@ interface Pane {
   initialCwd?: string;
 }
 
+interface PersistedLayout {
+  workspaces: {
+    id: string;
+    name: string;
+    panes: [string, { id: string; cwd?: string }][];
+    paneTree: PaneNode;
+    activePaneId: string;
+  }[];
+  activeWorkspaceId: string;
+}
+
 interface PromptDialogConfig {
   title: string;
   defaultValue: string;
@@ -72,6 +83,10 @@ interface AppState {
   panes: Map<string, Pane>;
   paneTree: PaneNode;
   activePaneId: string;
+
+  isLayoutLoaded: boolean;
+  setLayoutLoaded: () => void;
+  restoreLayout: (layout: PersistedLayout) => void;
 
   isAuthChecked: boolean;
   isAuthenticated: boolean;
@@ -130,14 +145,12 @@ interface AppState {
   bumpThemeVersion: () => void;
 }
 
-let paneCounter = 0;
 function generatePaneId(): string {
   return crypto.randomUUID().slice(0, 6);
 }
 
-let splitCounter = 0;
 function generateSplitId(): string {
-  return `split-${++splitCounter}`;
+  return `split-${crypto.randomUUID().slice(0, 6)}`;
 }
 
 const initialPaneId = generatePaneId();
@@ -303,6 +316,40 @@ export const useAppStore = create<AppState>((set, get) => ({
   paneTree: { type: "leaf", paneId: initialPaneId },
   activePaneId: initialPaneId,
 
+  isLayoutLoaded: false,
+  setLayoutLoaded: () => set({ isLayoutLoaded: true }),
+
+  restoreLayout: (layout) => {
+    const activeWs =
+      layout.workspaces.find((w) => w.id === layout.activeWorkspaceId) ??
+      layout.workspaces[0];
+    if (!activeWs) return;
+
+    const toPane = (p: { id: string; cwd?: string }): Pane => ({
+      id: p.id,
+      terminalId: null,
+      initialCwd: p.cwd,
+    });
+
+    const workspaces: Workspace[] = layout.workspaces.map((ws) => ({
+      id: ws.id,
+      name: ws.name,
+      panes: ws.panes.map(([id, p]) => [id, toPane(p)] as [string, Pane]),
+      paneTree: ws.paneTree,
+      activePaneId: ws.activePaneId,
+    }));
+
+    set({
+      workspaces,
+      activeWorkspaceId: layout.activeWorkspaceId,
+      panes: new Map(
+        activeWs.panes.map(([id, p]) => [id, toPane(p)] as [string, Pane])
+      ),
+      paneTree: activeWs.paneTree,
+      activePaneId: activeWs.activePaneId,
+    });
+  },
+
   isAuthChecked: false,
   isAuthenticated: false,
   userEmail: null,
@@ -390,7 +437,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { panes };
     }),
 
-  setActivePaneId: (paneId) => set({ activePaneId: paneId }),
+  setActivePaneId: (paneId) => {
+    if (get().activePaneId === paneId) return;
+    set({ activePaneId: paneId });
+  },
 
   getActiveTerminalId: () => {
     const state = get();
@@ -652,4 +702,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   bumpThemeVersion: () => set((s) => ({ themeVersion: s.themeVersion + 1 })),
 }));
 
-export type { PaneNode, SplitNode, LeafNode, SplitDirection, Pane, Chat, Workspace };
+export type { PaneNode, SplitNode, LeafNode, SplitDirection, Pane, Chat, Workspace, PersistedLayout };

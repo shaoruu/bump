@@ -81,22 +81,11 @@ export function CommandPalette({ initialMode = "actions", onClose }: CommandPale
     snapshotRef.current = null;
   }, []);
 
-  const focusAfterClose = useCallback(() => {
-    const { mode: appMode, activePaneId } = useAppStore.getState();
-    if (appMode === "agent") {
-      const input =
-        document.querySelector<HTMLInputElement>("input[placeholder]");
-      input?.focus();
-    } else {
-      terminalRegistry.focusTerminal(activePaneId);
-    }
-  }, []);
-
   const handleClose = useCallback(() => {
     revertPreview();
     onClose();
-    focusAfterClose();
-  }, [onClose, revertPreview, focusAfterClose]);
+    requestAnimationFrame(() => terminalRegistry.focusActivePane());
+  }, [onClose, revertPreview]);
 
   const handleActionSelect = useCallback(
     (action: Action) => {
@@ -117,10 +106,10 @@ export function CommandPalette({ initialMode = "actions", onClose }: CommandPale
     (theme: GhosttyTheme) => {
       snapshotRef.current = null;
       onClose();
-      focusAfterClose();
+      requestAnimationFrame(() => terminalRegistry.focusActivePane());
       applyTheme(theme);
     },
-    [onClose, focusAfterClose]
+    [onClose]
   );
 
   const handleHighlightChange = useCallback(

@@ -41,10 +41,14 @@ function getAgentCliPath(): string {
 
 let agentSession: AgentSession | null = null;
 
-export function setupIpcHandlers(mainWindow: BrowserWindow): void {
+export function setupIpcHandlers(
+  getWindow: () => BrowserWindow | null
+): void {
   ipcMain.handle("terminal:create", async (_event, cwd?: string) => {
+    const win = getWindow();
+    if (!win) throw new Error("No active window");
     const resolvedCwd = cwd || process.env.HOME || process.cwd();
-    return createTerminal(mainWindow, resolvedCwd);
+    return createTerminal(win, resolvedCwd);
   });
 
   ipcMain.handle("terminal:cwd", async (_event, id: string) => {
@@ -78,10 +82,12 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
   });
 
   ipcMain.handle("agent:start", async (_event, workspacePath: string) => {
+    const win = getWindow();
+    if (!win) throw new Error("No active window");
     if (agentSession) {
       await agentSession.stop();
     }
-    agentSession = new AgentSession(mainWindow, workspacePath);
+    agentSession = new AgentSession(win, workspacePath);
     await agentSession.start();
   });
 
@@ -132,7 +138,9 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
   });
 
   ipcMain.handle("dialog:select-directory", async () => {
-    const result = await dialog.showOpenDialog(mainWindow, {
+    const win = getWindow();
+    if (!win) throw new Error("No active window");
+    const result = await dialog.showOpenDialog(win, {
       properties: ["openDirectory"],
     });
     if (result.canceled || result.filePaths.length === 0) return null;

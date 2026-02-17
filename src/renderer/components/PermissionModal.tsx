@@ -1,5 +1,6 @@
 import { useAppStore } from "../store/appStore.js";
 import { Dialog } from "./Dialog.js";
+import { terminalRegistry } from "./TerminalRegistry.js";
 
 export function PermissionModal() {
   const pendingPermission = useAppStore((s) => s.pendingPermission);
@@ -10,6 +11,7 @@ export function PermissionModal() {
       outcome: { outcome: "selected", optionId },
     });
     setPendingPermission(null);
+    requestAnimationFrame(() => terminalRegistry.focusActivePane());
   };
 
   const handleCancel = () => {
@@ -17,6 +19,7 @@ export function PermissionModal() {
       outcome: { outcome: "cancelled" },
     });
     setPendingPermission(null);
+    requestAnimationFrame(() => terminalRegistry.focusActivePane());
   };
 
   return (

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback, type ReactNode } from "react";
+import { terminalRegistry } from "./TerminalRegistry.js";
 
 interface DialogProps {
   open: boolean;
@@ -53,19 +54,27 @@ export function PromptDialog({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    requestAnimationFrame(() => inputRef.current?.select());
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
   }, []);
+
+  const handleClose = useCallback(() => {
+    onClose();
+    requestAnimationFrame(() => terminalRegistry.focusActivePane());
+  }, [onClose]);
 
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim();
     if (trimmed) {
       onSubmit(trimmed);
-      onClose();
+      handleClose();
     }
-  }, [value, onSubmit, onClose]);
+  }, [value, onSubmit, handleClose]);
 
   return (
-    <Dialog open={open} onClose={onClose}>
+    <Dialog open={open} onClose={handleClose}>
       <div className="w-[320px] bg-surface-1 border border-white/[0.08] shadow-2xl p-4">
         <p className="text-sm text-text-primary mb-3">{title}</p>
         <input
@@ -81,7 +90,7 @@ export function PromptDialog({
         />
         <div className="flex justify-end gap-2 mt-3">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-xs text-text-secondary px-3 py-1.5 hover:bg-surface-2 transition-colors"
           >
             cancel

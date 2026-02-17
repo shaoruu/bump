@@ -64,31 +64,6 @@ export function registerCoreActions(
   });
 
   registerAction({
-    id: "mode.toggle",
-    label: "Toggle Agent Mode",
-    shortcut: "Cmd+I",
-    keywords: ["ai", "chat", "switch"],
-    category: "agent",
-    execute: () => {
-      const store = useAppStore.getState();
-      store.toggleMode();
-      if (store.mode === "agent") {
-        terminalRegistry.focusTerminal(store.activePaneId);
-      }
-    },
-  });
-
-  registerAction({
-    id: "agent.clear",
-    label: "Clear Agent History",
-    keywords: ["reset", "delete", "messages"],
-    category: "agent",
-    execute: () => {
-      useAppStore.getState().clearAgentMessages();
-    },
-  });
-
-  registerAction({
     id: "terminal.split-horizontal",
     label: "Split Terminal Right",
     shortcut: "Cmd+D",
@@ -160,23 +135,6 @@ export function registerCoreActions(
       closePane(activePaneId);
       terminalRegistry.destroy(activePaneId);
     },
-  });
-
-  registerAction({
-    id: "chat.new",
-    label: "New Chat",
-    shortcut: "Cmd+N",
-    category: "agent",
-    execute: () => {
-      useAppStore.getState().createChat();
-    },
-  });
-
-  registerAction({
-    id: "chat.switch",
-    label: "Switch Chat...",
-    category: "agent",
-    execute: openPalette,
   });
 
   registerAction({
@@ -371,14 +329,4 @@ export function registerCoreActions(
     },
   });
 
-  registerAction({
-    id: "agent.panel.toggle",
-    label: "Toggle Agent Panel",
-    keywords: ["show", "hide", "sidebar", "ai"],
-    category: "agent",
-    execute: () => {
-      const { agentPanelVisible, setAgentPanelVisible } = useAppStore.getState();
-      setAgentPanelVisible(!agentPanelVisible);
-    },
-  });
 }

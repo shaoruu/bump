@@ -1,4 +1,19 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useAppStore } from "../store/appStore.js";
 import { terminalRegistry } from "./TerminalRegistry.js";
 
@@ -35,61 +50,54 @@ export function TabBar() {
     closeWorkspace(wsId);
   }, [closeWorkspace]);
 
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    })
+  );
 
-  const handleDragStart = useCallback((id: string) => {
-    setDragId(id);
-  }, []);
+  const workspaceIds = workspaces.map((w) => w.id);
 
-  const handleDragOver = useCallback((e: React.DragEvent, id: string) => {
-    e.preventDefault();
-    if (dragId && dragId !== id) {
-      setDragOverId(id);
-    }
-  }, [dragId]);
-
-  const handleDrop = useCallback((targetId: string) => {
-    if (!dragId || dragId === targetId) return;
-    const ids = workspaces.map((w) => w.id);
-    const fromIdx = ids.indexOf(dragId);
-    const toIdx = ids.indexOf(targetId);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const newIds = [...ids];
-    newIds.splice(fromIdx, 1);
-    newIds.splice(toIdx, 0, dragId);
-    reorderWorkspaces(newIds);
-    setDragId(null);
-    setDragOverId(null);
-  }, [dragId, workspaces, reorderWorkspaces]);
-
-  const handleDragEnd = useCallback(() => {
-    setDragId(null);
-    setDragOverId(null);
-  }, []);
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIndex = workspaceIds.indexOf(active.id as string);
+      const newIndex = workspaceIds.indexOf(over.id as string);
+      if (oldIndex === -1 || newIndex === -1) return;
+      reorderWorkspaces(arrayMove(workspaceIds, oldIndex, newIndex));
+    },
+    [workspaceIds, reorderWorkspaces]
+  );
 
   return (
     <div className="flex items-center h-[32px] bg-surface-1 select-none titlebar-drag border-b border-border">
       <div className={`${isFullscreen ? "w-2" : "w-[78px]"} shrink-0`} />
       <div className="flex-1 flex items-center min-w-0 overflow-x-auto gap-0.5 titlebar-no-drag">
-        {workspaces.map((ws, idx) => (
-          <Tab
-            key={ws.id}
-            id={ws.id}
-            name={ws.name}
-            isActive={ws.id === activeWorkspaceId}
-            isDragOver={ws.id === dragOverId}
-            index={idx}
-            canClose={workspaces.length > 1}
-            onSelect={() => switchWorkspace(ws.id)}
-            onClose={() => handleCloseWorkspace(ws.id)}
-            onRename={(name) => renameWorkspace(ws.id, name)}
-            onDragStart={() => handleDragStart(ws.id)}
-            onDragOver={(e) => handleDragOver(e, ws.id)}
-            onDrop={() => handleDrop(ws.id)}
-            onDragEnd={handleDragEnd}
-          />
-        ))}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={workspaceIds}
+            strategy={horizontalListSortingStrategy}
+          >
+            {workspaces.map((ws, idx) => (
+              <SortableTab
+                key={ws.id}
+                id={ws.id}
+                name={ws.name}
+                isActive={ws.id === activeWorkspaceId}
+                index={idx}
+                canClose={workspaces.length > 1}
+                onSelect={() => switchWorkspace(ws.id)}
+                onClose={() => handleCloseWorkspace(ws.id)}
+                onRename={(name) => renameWorkspace(ws.id, name)}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
         <button
           onClick={() => createWorkspace()}
           className="shrink-0 px-2 h-full text-text-tertiary hover:text-text-secondary text-xs transition-colors"
@@ -120,39 +128,45 @@ export function TabBar() {
   );
 }
 
-interface TabProps {
+interface SortableTabProps {
   id: string;
   name: string;
   isActive: boolean;
-  isDragOver: boolean;
   index: number;
   canClose: boolean;
   onSelect: () => void;
   onClose: () => void;
   onRename: (name: string) => void;
-  onDragStart: () => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDrop: () => void;
-  onDragEnd: () => void;
 }
 
-function Tab({
+function SortableTab({
+  id,
   name,
   isActive,
-  isDragOver,
   index,
   canClose,
   onSelect,
   onClose,
   onRename,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  onDragEnd,
-}: TabProps) {
+}: SortableTabProps) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(name);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, disabled: editing });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
 
   useEffect(() => {
     if (editing) {
@@ -183,16 +197,15 @@ function Tab({
 
   return (
     <div
-      draggable={!editing}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      onDragEnd={onDragEnd}
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...(editing ? {} : listeners)}
       onClick={onSelect}
       onDoubleClick={handleDoubleClick}
       className={`flex items-center gap-1 px-1.5 py-1 text-xs cursor-pointer transition-colors group shrink-0 ${
         isActive ? "bg-white/[0.04] text-text-primary" : "text-text-tertiary hover:text-text-secondary hover:bg-white/[0.03]"
-      } ${isDragOver ? "border-l border-accent" : ""}`}
+      }`}
     >
       {editing ? (
         <input

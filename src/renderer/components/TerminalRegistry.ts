@@ -55,6 +55,10 @@ class TerminalRegistry {
   private entries = new Map<string, TerminalEntry>();
   private currentTheme: Record<string, string> | null = getThemeCache()?.terminalTheme ?? null;
 
+  get(paneId: string): TerminalEntry | undefined {
+    return this.entries.get(paneId);
+  }
+
   getOrCreate(paneId: string, callbacks: TerminalCallbacks, cwd?: string): TerminalEntry {
     const existing = this.entries.get(paneId);
     if (existing) return existing;
@@ -115,7 +119,6 @@ class TerminalRegistry {
     terminal.attachCustomKeyEventHandler((e) => {
       if (e.metaKey && e.key === "d") return true;
       if (e.metaKey && e.key === "w") return true;
-      if (e.metaKey && e.key === "i") return true;
       if (e.metaKey && e.key === "p") return true;
       if (e.metaKey && e.key === "n") return true;
       if (e.metaKey && e.key === "t") return true;
@@ -273,6 +276,17 @@ class TerminalRegistry {
     const entry = this.entries.get(paneId);
     if (entry?.terminal) {
       entry.terminal.focus();
+    }
+  }
+
+  focusActivePane() {
+    const { mode, activePaneId } = useAppStore.getState();
+    if (mode === "agent") {
+      const input =
+        document.querySelector<HTMLInputElement>("input[placeholder]");
+      input?.focus();
+    } else {
+      this.focusTerminal(activePaneId);
     }
   }
 }

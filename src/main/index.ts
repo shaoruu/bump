@@ -112,7 +112,6 @@ function createWindow(): void {
   });
 
   createApplicationMenu();
-  setupIpcHandlers(mainWindow);
 
   mainWindow.on("enter-full-screen", () => {
     mainWindow?.webContents.send("fullscreen-change", true);
@@ -133,6 +132,8 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  setupIpcHandlers(() => mainWindow);
+
   ipcMain.handle("window:close", (event) => {
     BrowserWindow.fromWebContents(event.sender)?.close();
   });
@@ -160,7 +161,7 @@ app.whenReady().then(() => {
 app.on("window-all-closed", async () => {
   closeAllTerminals();
   await cleanupAgent();
-  if (process.platform !== "darwin") {
+  if (process.platform !== "darwin" || quitConfirmed) {
     app.quit();
   }
 });

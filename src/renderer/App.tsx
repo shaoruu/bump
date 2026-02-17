@@ -1,28 +1,20 @@
 import { useEffect, useState, useCallback } from "react";
 import { PaneContainer } from "./components/PaneContainer.js";
-import { AgentPanel } from "./components/AgentPanel.js";
-import { InputBar } from "./components/InputBar.js";
 import { TabBar } from "./components/TabBar.js";
-import { PermissionModal } from "./components/PermissionModal.js";
 import { LoginView } from "./components/LoginView.js";
-import { ChatMenu } from "./components/ChatMenu.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PromptDialog } from "./components/Dialog.js";
 import { useAppStore } from "./store/appStore.js";
 import { registerCoreActions, getActions, executeAction } from "./lib/actions.js";
 import { terminalRegistry } from "./components/TerminalRegistry.js";
+import { loadPersistedLayout, startLayoutPersistence } from "./lib/layout-persistence.js";
 
 export function App() {
+  const isLayoutLoaded = useAppStore((s) => s.isLayoutLoaded);
   const isAuthChecked = useAppStore((s) => s.isAuthChecked);
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const setAuth = useAppStore((s) => s.setAuth);
   const setAuthChecked = useAppStore((s) => s.setAuthChecked);
-  const appendAgentText = useAppStore((s) => s.appendAgentText);
-  const addToolCall = useAppStore((s) => s.addToolCall);
-  const updateToolCall = useAppStore((s) => s.updateToolCall);
-  const setPendingPermission = useAppStore((s) => s.setPendingPermission);
-  const agentPanelVisible = useAppStore((s) => s.agentPanelVisible);
-  const mode = useAppStore((s) => s.mode);
   const promptDialog = useAppStore((s) => s.promptDialog);
   const closePrompt = useAppStore((s) => s.closePrompt);
 
@@ -44,46 +36,20 @@ export function App() {
   }, [openPalette, openThemePicker]);
 
   useEffect(() => {
+    loadPersistedLayout();
+  }, []);
+
+  useEffect(() => {
+    if (!isLayoutLoaded) return;
+    return startLayoutPersistence();
+  }, [isLayoutLoaded]);
+
+  useEffect(() => {
     window.bump.checkAuth().then((status) => {
       setAuth(status.authenticated, status.email);
       setAuthChecked();
     });
   }, [setAuth, setAuthChecked]);
-
-  useEffect(() => {
-    const unsubUpdate = window.bump.onAgentUpdate((update) => {
-      if (update.sessionUpdate === "agent_message_chunk") {
-        if (update.content.type === "text") {
-          appendAgentText(update.content.text);
-        }
-      } else if (update.sessionUpdate === "tool_call") {
-        addToolCall({
-          toolCallId: update.toolCallId,
-          title: update.title,
-          subtitle: update.subtitle,
-          kind: update.kind,
-          status: "pending",
-          rawInput: update.rawInput,
-          timestamp: Date.now(),
-        });
-      } else if (update.sessionUpdate === "tool_call_update") {
-        updateToolCall(update.toolCallId, {
-          status: update.status,
-          content: update.content,
-          rawOutput: update.rawOutput,
-        });
-      }
-    });
-
-    const unsubPermission = window.bump.onPermissionRequest((request) => {
-      setPendingPermission(request);
-    });
-
-    return () => {
-      unsubUpdate();
-      unsubPermission();
-    };
-  }, [appendAgentText, addToolCall, updateToolCall, setPendingPermission]);
 
   useEffect(() => {
     return window.bump.onClosePane(() => {
@@ -135,7 +101,7 @@ export function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  if (!isAuthChecked) {
+  if (!isAuthChecked || !isLayoutLoaded) {
     return (
       <div className="h-full flex items-center justify-center bg-surface-0">
         <span className="text-xs text-text-tertiary">loading...</span>
@@ -155,35 +121,9 @@ export function App() {
   return (
     <div className="h-full flex flex-col">
       <TabBar />
-      <div className="flex-1 flex min-h-0">
-        <div
-          className={`flex-1 min-w-0 ${
-            agentPanelVisible ? "border-r border-border" : ""
-          }`}
-        >
-          <PaneContainer />
-        </div>
-        {agentPanelVisible && (
-          <div className="w-[360px] shrink-0 bg-surface-0 flex flex-col">
-            <div className="flex items-center justify-between px-2 h-6 border-b border-white/[0.06]">
-              <ChatMenu />
-              <button
-                onClick={() =>
-                  useAppStore.getState().setAgentPanelVisible(false)
-                }
-                className="text-2xs text-text-tertiary hover:text-text-secondary transition-colors"
-              >
-                close
-              </button>
-            </div>
-            <div className="flex-1 min-h-0">
-              <AgentPanel />
-            </div>
-          </div>
-        )}
+      <div className="flex-1 min-h-0">
+        <PaneContainer />
       </div>
-      {mode === "agent" && <InputBar />}
-      <PermissionModal />
       {paletteOpen && (
         <CommandPalette
           initialMode={paletteMode}
