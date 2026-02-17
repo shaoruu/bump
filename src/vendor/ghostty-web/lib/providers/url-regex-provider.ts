@@ -81,9 +81,12 @@ export class UrlRegexProvider implements ILinkProvider {
             end: { x: endX, y },
           },
           activate: (event) => {
-            // Open link if Ctrl/Cmd is pressed
             if (event.ctrlKey || event.metaKey) {
-              window.open(url, '_blank', 'noopener,noreferrer');
+              if (typeof window !== 'undefined' && (window as any).bump?.openExternal) {
+                (window as any).bump.openExternal(url);
+              } else {
+                window.open(url, '_blank');
+              }
             }
           },
         });

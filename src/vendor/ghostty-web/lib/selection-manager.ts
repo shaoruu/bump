@@ -433,23 +433,22 @@ export class SelectionManager {
     // Mouse down - start selection or clear existing
     canvas.addEventListener('mousedown', (e: MouseEvent) => {
       if (e.button === 0) {
-        // Left click only
-
-        // CRITICAL: Focus the terminal so it can receive keyboard input
-        // The canvas doesn't have tabindex, but the parent container does
         if (canvas.parentElement) {
           canvas.parentElement.focus();
         }
 
+        // Skip selection on Cmd/Ctrl+click so link activation works
+        if (e.metaKey || e.ctrlKey) {
+          return;
+        }
+
         const cell = this.pixelToCell(e.offsetX, e.offsetY);
 
-        // Always clear previous selection on new click
         const hadSelection = this.hasSelection();
         if (hadSelection) {
           this.clearSelection();
         }
 
-        // Start new selection (convert to absolute coordinates)
         const absoluteRow = this.viewportRowToAbsolute(cell.row);
         this.selectionStart = { col: cell.col, absoluteRow };
         this.selectionEnd = { col: cell.col, absoluteRow };

@@ -130,6 +130,12 @@ app.whenReady().then(() => {
     BrowserWindow.fromWebContents(event.sender)?.close();
   });
 
+  ipcMain.handle("shell:open-external", (_event, url: string) => {
+    if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("mailto:")) {
+      return shell.openExternal(url);
+    }
+  });
+
   createWindow();
 
   app.on("activate", () => {

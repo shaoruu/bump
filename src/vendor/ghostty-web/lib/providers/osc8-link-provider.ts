@@ -62,9 +62,12 @@ export class OSC8LinkProvider implements ILinkProvider {
           text: uri,
           range,
           activate: (event) => {
-            // Open link if Ctrl/Cmd is pressed
             if (event.ctrlKey || event.metaKey) {
-              window.open(uri, '_blank', 'noopener,noreferrer');
+              if (typeof window !== 'undefined' && (window as any).bump?.openExternal) {
+                (window as any).bump.openExternal(uri);
+              } else {
+                window.open(uri, '_blank');
+              }
             }
           },
         });

@@ -354,7 +354,7 @@ export function registerCoreActions(
       if (info?.logPath) {
         pendingInputs.set(
           newPaneId,
-          `cursor "in the terminal logs ${info.logPath}, "`
+          `cursor-agent -f "with the terminal logs at ${info.logPath}, `
         );
       }
     },

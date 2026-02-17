@@ -137,6 +137,7 @@ export interface BumpAPI {
   getCwd: () => Promise<string>;
 
   closeWindow: () => Promise<void>;
+  openExternal: (url: string) => Promise<void>;
   onClosePane: (cb: () => void) => () => void;
 }
 

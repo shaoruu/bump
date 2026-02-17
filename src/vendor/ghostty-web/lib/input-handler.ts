@@ -386,7 +386,11 @@ export class InputHandler {
 
     // Allow Ctrl+V and Cmd+V to trigger paste event (don't preventDefault)
     if ((event.ctrlKey || event.metaKey) && event.code === 'KeyV') {
-      // Let the browser's native paste event fire
+      return;
+    }
+
+    // Allow Cmd+Q to reach Electron's native menu handler for quit
+    if (event.metaKey && event.code === 'KeyQ') {
       return;
     }
 

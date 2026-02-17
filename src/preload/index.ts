@@ -99,6 +99,8 @@ const bump: BumpAPI = {
 
   closeWindow: () => ipcRenderer.invoke("window:close"),
 
+  openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
+
   onClosePane: (cb: () => void) => {
     const handler = () => cb();
     ipcRenderer.on("close-pane", handler);

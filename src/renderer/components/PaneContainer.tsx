@@ -3,6 +3,7 @@ import { useAppStore } from "../store/appStore.js";
 import type { PaneNode } from "../store/appStore.js";
 import { SplitView } from "./SplitView.js";
 import { terminalRegistry } from "./TerminalRegistry.js";
+import { CopyIcon, ZapIcon, MoreHorizontalIcon } from "./Icons.js";
 
 type DropZone = "left" | "right" | "top" | "bottom" | "center";
 
@@ -219,6 +220,35 @@ function PaneSlot({ paneId }: { paneId: string }) {
     [paneId]
   );
 
+  const handleCopyOutputPath = useCallback(async () => {
+    const tid = terminalIdRef.current;
+    if (!tid) return;
+    const infos = await window.bump.getTerminalInfo();
+    const info = infos.find((i) => i.id === tid);
+    if (info?.logPath) {
+      navigator.clipboard.writeText(info.logPath);
+    }
+  }, []);
+
+  const handleFixFurther = useCallback(async () => {
+    const tid = terminalIdRef.current;
+    if (!tid) return;
+    const [infos, cwd] = await Promise.all([
+      window.bump.getTerminalInfo(),
+      window.bump.getTerminalCwd(tid),
+    ]);
+    const info = infos.find((i) => i.id === tid);
+    const newPaneId = useAppStore
+      .getState()
+      .splitPane(paneId, "horizontal", cwd ?? undefined);
+    if (info?.logPath) {
+      pendingInputs.set(
+        newPaneId,
+        `cursor-agent -f "with the terminal logs at ${info.logPath}, `
+      );
+    }
+  }, [paneId]);
+
   const shortTitle = title.split("/").slice(-2).join("/");
 
   return (
@@ -239,13 +269,29 @@ function PaneSlot({ paneId }: { paneId: string }) {
         onDragEnd={handleDragEnd}
       >
         <span className="flex-1 truncate">{shortTitle}</span>
-        <button
-          ref={menuButtonRef}
-          onClick={() => setMenuOpen((prev) => !prev)}
-          className="shrink-0 px-0.5 text-text-tertiary hover:text-text-secondary opacity-0 group-hover/header:opacity-100 transition-opacity"
-        >
-          ...
-        </button>
+        <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover/header:opacity-100 transition-opacity">
+          <button
+            onClick={handleCopyOutputPath}
+            className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
+            title="Copy output path"
+          >
+            <CopyIcon size={12} />
+          </button>
+          <button
+            onClick={handleFixFurther}
+            className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
+            title="Fix further"
+          >
+            <ZapIcon size={12} />
+          </button>
+          <button
+            ref={menuButtonRef}
+            onClick={() => setMenuOpen((prev) => !prev)}
+            className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
+          >
+            <MoreHorizontalIcon size={12} />
+          </button>
+        </div>
       </div>
       <div ref={slotRef} className="flex-1 min-h-0" />
       {dropZone && <DropOverlay zone={dropZone} />}
@@ -334,26 +380,6 @@ function PaneMenu({
     onClose();
   };
 
-  const fixFurther = async () => {
-    onClose();
-    const terminalId = useAppStore.getState().panes.get(paneId)?.terminalId;
-    if (!terminalId) return;
-    const [infos, cwd] = await Promise.all([
-      window.bump.getTerminalInfo(),
-      window.bump.getTerminalCwd(terminalId),
-    ]);
-    const info = infos.find((i) => i.id === terminalId);
-    const newPaneId = useAppStore
-      .getState()
-      .splitPane(paneId, "horizontal", cwd ?? undefined);
-    if (info?.logPath) {
-      pendingInputs.set(
-        newPaneId,
-        `cursor "in the terminal logs ${info.logPath}, "`
-      );
-    }
-  };
-
   const closePane = () => {
     const { paneTree, workspaces } = useAppStore.getState();
     if (paneTree.type === "leaf" && workspaces.length <= 1) {
@@ -374,8 +400,6 @@ function PaneMenu({
     >
       <MenuButton label="Split Right" shortcut="⌘D" onClick={splitRight} />
       <MenuButton label="Split Down" shortcut="⌘⇧D" onClick={splitDown} />
-      <div className="h-px bg-white/[0.06] mx-2 my-1" />
-      <MenuButton label="Fix further..." onClick={fixFurther} />
       <div className="h-px bg-white/[0.06] mx-2 my-1" />
       <MenuButton label="Close" shortcut="⌘W" onClick={closePane} />
     </div>
