@@ -8,6 +8,7 @@ import {
   closeAllTerminals,
   getTerminalBuffer,
   getTerminalCwd,
+  getTerminalGitBranch,
   getAllTerminalLogPaths,
   getAllTerminalInfo,
 } from "./pty-manager.js";
@@ -54,6 +55,10 @@ export function setupIpcHandlers(
 
   ipcMain.handle("terminal:cwd", async (_event, id: string) => {
     return getTerminalCwd(id);
+  });
+
+  ipcMain.handle("terminal:git-branch", async (_event, id: string) => {
+    return getTerminalGitBranch(id);
   });
 
   ipcMain.handle(

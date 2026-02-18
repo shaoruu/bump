@@ -10,6 +10,7 @@ const bump: BumpAPI = {
   createTerminal: (cwd?: string) => ipcRenderer.invoke("terminal:create", cwd),
 
   getTerminalCwd: (id: string) => ipcRenderer.invoke("terminal:cwd", id),
+  getTerminalGitBranch: (id: string) => ipcRenderer.invoke("terminal:git-branch", id),
 
   writeTerminal: (id: string, data: string) =>
     ipcRenderer.invoke("terminal:write", id, data),

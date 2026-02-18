@@ -1552,6 +1552,18 @@ export class Terminal implements ITerminalCore {
 
       // Use smooth scrolling for any amount (no rounding needed)
       if (deltaLines !== 0) {
+        // Clear link hover state when scrolling — the mouse position hasn't
+        // moved but the content has, so any underline would be stale.
+        if (this.renderer) {
+          this.renderer.setHoveredHyperlinkId(0);
+          this.renderer.setHoveredLinkRange(null);
+        }
+        if (this.currentHoveredLink) {
+          this.currentHoveredLink.hover?.(false);
+          this.currentHoveredLink = undefined;
+          if (this.element) this.element.style.cursor = 'default';
+        }
+
         // Calculate target position
         // deltaY > 0 = scroll down (decrease viewportY)
         // deltaY < 0 = scroll up (increase viewportY)

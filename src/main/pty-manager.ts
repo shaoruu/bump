@@ -1,9 +1,9 @@
 import type { BrowserWindow } from "electron";
 import type * as PtyType from "node-pty";
 import type { WriteStream } from "node:fs";
-import { mkdirSync, createWriteStream, writeFileSync, readFileSync, unlinkSync } from "node:fs";
-import { execFileSync } from "node:child_process";
-import { join } from "node:path";
+import { mkdirSync, createWriteStream, writeFileSync, readFileSync, existsSync, unlinkSync } from "node:fs";
+import { execFileSync, execFile } from "node:child_process";
+import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { BUMP_DIR } from "./paths.js";
 
@@ -200,20 +200,10 @@ export function getTerminalBuffer(id: string): string {
   }
 }
 
-export function getTerminalCwd(id: string): string | null {
+export function getTerminalCwd(id: string): Promise<string | null> {
   const terminal = terminals.get(id);
-  if (!terminal) return null;
-  try {
-    const pid = terminal.pty.pid;
-    const output = execFileSync("lsof", ["-a", "-d", "cwd", "-p", String(pid), "-Fn"], {
-      encoding: "utf-8",
-      timeout: 2000,
-    });
-    for (const line of output.split("\n")) {
-      if (line.startsWith("n/")) return line.slice(1);
-    }
-  } catch {}
-  return null;
+  if (!terminal) return Promise.resolve(null);
+  return resolveCwdAsync(terminal.pty.pid);
 }
 
 export function getTerminalTitle(id: string): string {
@@ -241,4 +231,47 @@ export function closeAllTerminals(): void {
   for (const id of Array.from(terminals.keys())) {
     closeTerminal(id);
   }
+}
+
+function resolveCwdAsync(pid: number): Promise<string | null> {
+  return new Promise((resolve) => {
+    execFile(
+      "lsof",
+      ["-a", "-d", "cwd", "-p", String(pid), "-Fn"],
+      { timeout: 2000 },
+      (err, stdout) => {
+        if (err) { resolve(null); return; }
+        for (const line of stdout.split("\n")) {
+          if (line.startsWith("n/")) { resolve(line.slice(1)); return; }
+        }
+        resolve(null);
+      }
+    );
+  });
+}
+
+function findGitBranch(dir: string): string | null {
+  let current = dir;
+  while (true) {
+    const headPath = join(current, ".git", "HEAD");
+    if (existsSync(headPath)) {
+      const content = readFileSync(headPath, "utf-8").trim();
+      if (content.startsWith("ref: refs/heads/")) {
+        return content.slice("ref: refs/heads/".length);
+      }
+      return content.slice(0, 7);
+    }
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return null;
+}
+
+export async function getTerminalGitBranch(id: string): Promise<string | null> {
+  const terminal = terminals.get(id);
+  if (!terminal) return null;
+  const cwd = await resolveCwdAsync(terminal.pty.pid);
+  if (!cwd) return null;
+  return findGitBranch(cwd);
 }

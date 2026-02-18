@@ -323,7 +323,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
 
   return (
     <div
-      className={`h-full w-full relative flex flex-col ${isDragging ? "opacity-50" : ""}`}
+      className={`h-full w-full relative flex flex-col transition-[filter,opacity] ${isDragging ? "opacity-50" : !isActive ? "brightness-[0.85]" : ""}`}
       onMouseDown={handleFocus}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}

@@ -18,9 +18,32 @@ import { CSS } from "@dnd-kit/utilities";
 import { useAppStore } from "../store/appStore.js";
 import { terminalRegistry } from "./TerminalRegistry.js";
 
-interface WeatherData {
-  temp: number;
-  condition: string;
+
+function useGitBranch(): string | null {
+  const [branch, setBranch] = useState<string | null>(null);
+  const terminalId = useAppStore((s) => s.panes.get(s.activePaneId)?.terminalId ?? null);
+
+  useEffect(() => {
+    if (!terminalId) {
+      setBranch(null);
+      return;
+    }
+
+    let cancelled = false;
+    const check = async () => {
+      const b = await window.bump.getTerminalGitBranch(terminalId);
+      if (!cancelled) setBranch(b);
+    };
+
+    check();
+    const interval = setInterval(check, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [terminalId]);
+
+  return branch;
 }
 
 function useCurrentTime() {
@@ -34,50 +57,11 @@ function useCurrentTime() {
   return time;
 }
 
-function useWeather() {
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-
-  useEffect(() => {
-    const fetchWeather = async () => {
-      try {
-        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
-        });
-        const { latitude, longitude } = pos.coords;
-        const res = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code`
-        );
-        const data = await res.json();
-        const code = data.current.weather_code as number;
-        const condition = weatherCodeToEmoji(code);
-        setWeather({ temp: Math.round(data.current.temperature_2m), condition });
-      } catch {
-        setWeather(null);
-      }
-    };
-
-    fetchWeather();
-    const interval = setInterval(fetchWeather, 10 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  return weather;
-}
-
-function weatherCodeToEmoji(code: number): string {
-  if (code === 0) return "clear";
-  if (code <= 3) return "cloudy";
-  if (code <= 49) return "fog";
-  if (code <= 69) return "rain";
-  if (code <= 79) return "snow";
-  if (code <= 99) return "storm";
-  return "?";
-}
 
 export function TabBar() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const time = useCurrentTime();
-  const weather = useWeather();
+  const branch = useGitBranch();
 
   useEffect(() => {
     window.bump.isFullscreen().then(setIsFullscreen);
@@ -172,8 +156,16 @@ export function TabBar() {
         </button>
       </div>
       <div className="shrink-0 titlebar-no-drag pr-2 flex items-center gap-2 text-2xs text-text-tertiary">
-        {weather && (
-          <span>{weather.condition} {weather.temp}°</span>
+        {branch && (
+          <span className="flex items-center gap-1 max-w-[120px]">
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none" className="shrink-0">
+              <circle cx="2" cy="1.5" r="1.2" fill="currentColor" />
+              <circle cx="2" cy="7.5" r="1.2" fill="currentColor" />
+              <circle cx="7" cy="3.5" r="1.2" fill="currentColor" />
+              <path d="M2 2.7V5M2 5C2 6.2 7 6 7 4.7V4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" fill="none" />
+            </svg>
+            <span className="truncate">{branch}</span>
+          </span>
         )}
         <span>{formatTime()}</span>
       </div>
