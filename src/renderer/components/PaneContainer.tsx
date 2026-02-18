@@ -161,18 +161,9 @@ function PaneSlot({ paneId }: { paneId: string }) {
   }, [isActive, paneId]);
 
   useEffect(() => {
-    const check = setInterval(() => {
-      if (terminalIdRef.current) {
-        clearInterval(check);
-        const unsub = window.bump.onTerminalTitle(
-          terminalIdRef.current,
-          setTitle
-        );
-        return () => unsub();
-      }
-    }, 50);
-    return () => clearInterval(check);
-  }, []);
+    if (!isReady || !terminalIdRef.current) return;
+    return window.bump.onTerminalTitle(terminalIdRef.current, setTitle);
+  }, [isReady]);
 
   useEffect(() => {
     const slot = slotRef.current;
@@ -186,6 +177,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
   }, [openContextMenu]);
 
   const handleFocus = useCallback(() => {
+    terminalRegistry.clearAllSelectionsExcept(paneId);
     setActivePaneId(paneId);
   }, [paneId, setActivePaneId]);
 

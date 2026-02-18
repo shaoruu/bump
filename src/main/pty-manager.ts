@@ -192,9 +192,10 @@ export function getTerminalBuffer(id: string): string {
   const terminal = terminals.get(id);
   if (!terminal) return "";
   try {
-    const content = readFileSync(terminal.logPath, "utf-8");
-    const lines = content.split("\n");
-    return lines.slice(-500).join("\n");
+    return execFileSync("tail", ["-n", "15000", terminal.logPath], {
+      encoding: "utf-8",
+      maxBuffer: 20 * 1024 * 1024,
+    });
   } catch {
     return "";
   }

@@ -295,8 +295,7 @@ export class CanvasRenderer {
     buffer: IRenderable,
     forceAll: boolean = false,
     viewportY: number = 0,
-    scrollbackProvider?: IScrollbackProvider,
-    scrollbarOpacity: number = 1
+    scrollbackProvider?: IScrollbackProvider
   ): void {
     // Store buffer reference for grapheme lookups in renderCell
     this.currentBuffer = buffer;
@@ -515,10 +514,6 @@ export class CanvasRenderer {
       this.renderCursor(cursor.x, cursor.y);
     }
 
-    // Render scrollbar if scrolled or scrollback exists (with opacity for fade effect)
-    if (scrollbackProvider && scrollbarOpacity > 0) {
-      this.renderScrollbar(viewportY, scrollbackLength, dims.rows, scrollbarOpacity);
-    }
 
     // Update last cursor position
     this.lastCursorPosition = { x: cursor.x, y: cursor.y };
@@ -826,55 +821,6 @@ export class CanvasRenderer {
   public setCursorBlink(_enabled: boolean): void {
   }
 
-  /**
-   * Get current font metrics
-   */
-
-  /**
-   * Render scrollbar (Phase 2)
-   * Shows scroll position and allows click/drag interaction
-   * @param opacity Opacity level (0-1) for fade in/out effect
-   */
-  private renderScrollbar(
-    viewportY: number,
-    scrollbackLength: number,
-    visibleRows: number,
-    opacity: number = 1
-  ): void {
-    const ctx = this.ctx;
-    const canvasHeight = this.canvas.height / this.devicePixelRatio;
-    const canvasWidth = this.canvas.width / this.devicePixelRatio;
-
-    // Scrollbar dimensions
-    const scrollbarWidth = 8;
-    const scrollbarX = canvasWidth - scrollbarWidth;
-    const scrollbarPadding = 4;
-    const scrollbarTrackHeight = canvasHeight - scrollbarPadding * 2;
-
-    ctx.fillStyle = this.theme.background;
-    ctx.fillRect(scrollbarX - 2, 0, scrollbarWidth + 2, canvasHeight);
-
-    // Don't draw scrollbar if fully transparent or no scrollback
-    if (opacity <= 0 || scrollbackLength === 0) return;
-
-    // Calculate scrollbar thumb size and position
-    const totalLines = scrollbackLength + visibleRows;
-    const thumbHeight = Math.max(20, (visibleRows / totalLines) * scrollbarTrackHeight);
-
-    // Position: 0 = at bottom, scrollbackLength = at top
-    const scrollPosition = viewportY / scrollbackLength; // 0 to 1
-    const thumbY = scrollbarPadding + (scrollbarTrackHeight - thumbHeight) * (1 - scrollPosition);
-
-    // Draw scrollbar track (subtle background) with opacity
-    ctx.fillStyle = `rgba(128, 128, 128, ${0.1 * opacity})`;
-    ctx.fillRect(scrollbarX, scrollbarPadding, scrollbarWidth, scrollbarTrackHeight);
-
-    // Draw scrollbar thumb with opacity
-    const isScrolled = viewportY > 0;
-    const baseOpacity = isScrolled ? 0.5 : 0.3;
-    ctx.fillStyle = `rgba(128, 128, 128, ${baseOpacity * opacity})`;
-    ctx.fillRect(scrollbarX, thumbY, scrollbarWidth, thumbHeight);
-  }
   public getMetrics(): FontMetrics {
     return { ...this.metrics };
   }

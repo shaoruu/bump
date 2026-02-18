@@ -322,9 +322,18 @@ class TerminalRegistry {
     }
   }
 
+  clearAllSelectionsExcept(paneId: string) {
+    for (const [id, e] of this.entries) {
+      if (id !== paneId) {
+        e.terminal?.clearSelection();
+      }
+    }
+  }
+
   focusTerminal(paneId: string) {
     const entry = this.entries.get(paneId);
     if (entry?.terminal) {
+      this.clearAllSelectionsExcept(paneId);
       entry.terminal.focus();
     }
   }
