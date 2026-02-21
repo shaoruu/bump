@@ -421,6 +421,8 @@ export class InputHandler {
       return;
     }
 
+    if (event.metaKey) return;
+
     // For printable characters without modifiers, send the character directly
     // This handles: a-z, A-Z (with shift), 0-9, punctuation, etc.
     if (this.isPrintableCharacter(event)) {

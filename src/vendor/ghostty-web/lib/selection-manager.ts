@@ -265,17 +265,28 @@ export class SelectionManager {
       this.end = { col: cell.col, absoluteRow };
       this.drag = { type: 'char' };
     }
+
+    this.selectionChangedEmitter.fire();
   }
 
   private extendDrag(col: number, viewportRow: number, absoluteRow: number): void {
     this.markRangeDirty();
 
     if (this.drag.type === 'word') {
-      this.wordDragOccurred = true;
-      this.extendByWord(col, viewportRow, absoluteRow);
+      const { anchor } = this.drag;
+      const withinAnchor =
+        absoluteRow === anchor.start.absoluteRow &&
+        col >= anchor.start.col &&
+        col <= anchor.end.col;
+      if (!withinAnchor) {
+        this.wordDragOccurred = true;
+        this.extendByWord(col, viewportRow, absoluteRow);
+      }
     } else {
       this.end = { col, absoluteRow };
     }
+
+    this.selectionChangedEmitter.fire();
   }
 
   private commitDrag(): void {
@@ -307,7 +318,6 @@ export class SelectionManager {
 
   private onCanvasMouseDown(e: MouseEvent): void {
     if (e.button !== 0 || e.metaKey || e.ctrlKey) return;
-    this.canvas.parentElement?.focus();
     this.beginDrag(e);
   }
 
@@ -315,7 +325,6 @@ export class SelectionManager {
     if (this.drag.type === 'idle') return;
     const cell = this.pixelToCell(e.offsetX, e.offsetY);
     this.extendDrag(cell.col, cell.row, this.viewportRowToAbsolute(cell.row));
-    this.updateAutoScroll(e.offsetY, this.canvas.clientHeight);
   }
 
   private onCanvasMouseLeave(e: MouseEvent): void {

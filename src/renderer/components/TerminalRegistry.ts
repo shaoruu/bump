@@ -103,6 +103,10 @@ class TerminalRegistry {
   private async initTerminal(paneId: string, entry: TerminalEntry, cwd?: string) {
     await ensureGhosttyInit();
 
+    await new Promise<void>(r => requestAnimationFrame(() => setTimeout(r, 0)));
+
+    if (!this.entries.has(paneId)) return;
+
     const theme = this.currentTheme ?? terminalTheme;
 
     const terminal = new Terminal({
@@ -135,7 +139,7 @@ class TerminalRegistry {
         return true;
       }
 
-      return true;
+      return false;
     });
 
     entry.terminal = terminal;
@@ -164,12 +168,34 @@ class TerminalRegistry {
     let writeBuffer = "";
     let writeRaf = 0;
 
+    const WRITE_BUDGET_MS = 8;
+    const WRITE_CHUNK = 64 * 1024;
+
     const flushWrites = () => {
-      if (writeBuffer.length > 0) {
-        terminal.write(writeBuffer);
-        writeBuffer = "";
+      if (writeBuffer.length === 0) {
+        writeRaf = 0;
+        return;
       }
-      writeRaf = 0;
+
+      const start = performance.now();
+      while (writeBuffer.length > 0) {
+        const chunk = writeBuffer.length <= WRITE_CHUNK
+          ? writeBuffer
+          : writeBuffer.substring(0, WRITE_CHUNK);
+        terminal.write(chunk);
+        if (writeBuffer.length <= WRITE_CHUNK) {
+          writeBuffer = "";
+        } else {
+          writeBuffer = writeBuffer.substring(WRITE_CHUNK);
+        }
+        if (performance.now() - start >= WRITE_BUDGET_MS) break;
+      }
+
+      if (writeBuffer.length > 0) {
+        writeRaf = requestAnimationFrame(flushWrites);
+      } else {
+        writeRaf = 0;
+      }
     };
 
     const waitForId = setInterval(() => {
@@ -189,6 +215,8 @@ class TerminalRegistry {
         });
       }
     }, 10);
+
+    const waitTimeout = setTimeout(() => clearInterval(waitForId), 30_000);
 
     let resizeTimeout: number | null = null;
     const resizeObserver = new ResizeObserver(() => {
@@ -211,11 +239,13 @@ class TerminalRegistry {
 
     entry.cleanup = () => {
       if (writeRaf) cancelAnimationFrame(writeRaf);
-      flushWrites();
+      writeRaf = 0;
+      writeBuffer = "";
       inputDisposable.dispose();
       realUnsubData?.();
       realUnsubExit?.();
       clearInterval(waitForId);
+      clearTimeout(waitTimeout);
       resizeObserver.disconnect();
       if (resizeTimeout) cancelAnimationFrame(resizeTimeout);
       terminal.dispose();

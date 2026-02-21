@@ -171,6 +171,15 @@ export function MinusIcon({ size = 14, className }: IconProps) {
   );
 }
 
+export function CodeIcon({ size = 14, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path d="M8 6L2 12L8 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 6L22 12L16 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export type IconName =
   | "copy"
   | "zap"
@@ -192,7 +201,8 @@ export type IconName =
   | "arrow-down"
   | "trash"
   | "maximize"
-  | "command";
+  | "command"
+  | "code";
 
 const iconMap: Record<IconName, React.ComponentType<IconProps>> = {
   "copy": CopyIcon,
@@ -216,6 +226,7 @@ const iconMap: Record<IconName, React.ComponentType<IconProps>> = {
   "trash": TrashIcon,
   "maximize": MaximizeIcon,
   "command": CommandIcon,
+  "code": CodeIcon,
 };
 
 export function Icon({ name, size = 14, className }: IconProps & { name: IconName }) {

@@ -127,7 +127,6 @@ export class CanvasRenderer {
   private hoveredHyperlinkId: number = 0;
   private previousHoveredHyperlinkId: number = 0;
 
-  // Regex link hover tracking (for links without hyperlink_id)
   private hoveredLinkRange: { startX: number; startY: number; endX: number; endY: number } | null =
     null;
   private previousHoveredLinkRange: {
@@ -136,6 +135,10 @@ export class CanvasRenderer {
     endX: number;
     endY: number;
   } | null = null;
+
+  private _selectionRows = new Set<number>();
+  private _hyperlinkRows = new Set<number>();
+  private _rowsToRender = new Set<number>();
 
   constructor(canvas: HTMLCanvasElement, options: RendererOptions = {}) {
     this.canvas = canvas;
@@ -350,15 +353,12 @@ export class CanvasRenderer {
       }
     }
 
-    // Check if we need to redraw selection-related lines
     const hasSelection = this.selectionManager && this.selectionManager.hasSelection();
-    const selectionRows = new Set<number>();
+    const selectionRows = this._selectionRows;
+    selectionRows.clear();
 
-    // Cache selection coordinates for use during cell rendering
-    // This is used by isInSelection() to determine if a cell needs selection colors
     this.currentSelectionCoords = hasSelection ? this.selectionManager!.getSelectionCoords() : null;
 
-    // Mark current selection rows for redraw (includes programmatic selections)
     if (this.currentSelectionCoords) {
       const coords = this.currentSelectionCoords;
       for (let row = coords.startRow; row <= coords.endRow; row++) {
@@ -366,44 +366,35 @@ export class CanvasRenderer {
       }
     }
 
-    // Always mark dirty selection rows for redraw (to clear old overlay)
     if (this.selectionManager) {
       const dirtyRows = this.selectionManager.getDirtySelectionRows();
       if (dirtyRows.size > 0) {
         for (const row of dirtyRows) {
           selectionRows.add(row);
         }
-        // Clear the dirty rows tracking after marking for redraw
         this.selectionManager.clearDirtySelectionRows();
       }
     }
 
-    // Track rows with hyperlinks that need redraw when hover changes
-    const hyperlinkRows = new Set<number>();
+    const hyperlinkRows = this._hyperlinkRows;
+    hyperlinkRows.clear();
     const hyperlinkChanged = this.hoveredHyperlinkId !== this.previousHoveredHyperlinkId;
     const linkRangeChanged =
       JSON.stringify(this.hoveredLinkRange) !== JSON.stringify(this.previousHoveredLinkRange);
 
     if (hyperlinkChanged) {
-      // Find rows containing the old or new hovered hyperlink
-      // Must check the correct buffer based on viewportY (scrollback vs screen)
       for (let y = 0; y < dims.rows; y++) {
         let line: GhosttyCell[] | null = null;
 
-        // Same logic as rendering: fetch from scrollback or screen
         if (viewportY > 0) {
           if (y < viewportY && scrollbackProvider) {
-            // This row is from scrollback
-            // Floor viewportY for array access (handles fractional values during smooth scroll)
             const scrollbackOffset = scrollbackLength - Math.floor(viewportY) + y;
             line = scrollbackProvider.getScrollbackLine(scrollbackOffset);
           } else {
-            // This row is from visible screen
             const screenRow = y - Math.floor(viewportY);
             line = buffer.getLine(screenRow);
           }
         } else {
-          // At bottom - fetch from visible screen
           line = buffer.getLine(y);
         }
 
@@ -414,18 +405,15 @@ export class CanvasRenderer {
               cell.hyperlink_id === this.previousHoveredHyperlinkId
             ) {
               hyperlinkRows.add(y);
-              break; // Found hyperlink in this row
+              break;
             }
           }
         }
       }
-      // Update previous state
       this.previousHoveredHyperlinkId = this.hoveredHyperlinkId;
     }
 
-    // Track rows affected by link range changes (for regex URLs)
     if (linkRangeChanged) {
-      // Add rows from old range
       if (this.previousHoveredLinkRange) {
         for (
           let y = this.previousHoveredLinkRange.startY;
@@ -435,7 +423,6 @@ export class CanvasRenderer {
           hyperlinkRows.add(y);
         }
       }
-      // Add rows from new range
       if (this.hoveredLinkRange) {
         for (let y = this.hoveredLinkRange.startY; y <= this.hoveredLinkRange.endY; y++) {
           hyperlinkRows.add(y);
@@ -447,25 +434,18 @@ export class CanvasRenderer {
     // Track if anything was actually rendered
     let anyLinesRendered = false;
 
-    // Determine which rows need rendering.
-    // We also include adjacent rows (above and below) for each dirty row to handle
-    // glyph overflow - tall glyphs like Devanagari vowel signs can extend into
-    // adjacent rows' visual space.
-    const rowsToRender = new Set<number>();
+    this._rowsToRender.clear();
     for (let y = 0; y < dims.rows; y++) {
-      // When scrolled, always force render all lines since we're showing scrollback
       const needsRender =
-        viewportY > 0
-          ? true
-          : forceAll || buffer.isRowDirty(y) || selectionRows.has(y) || hyperlinkRows.has(y);
+        forceAll || buffer.isRowDirty(y) || selectionRows.has(y) || hyperlinkRows.has(y);
 
       if (needsRender) {
-        rowsToRender.add(y);
-        // Include adjacent rows to handle glyph overflow
-        if (y > 0) rowsToRender.add(y - 1);
-        if (y < dims.rows - 1) rowsToRender.add(y + 1);
+        this._rowsToRender.add(y);
+        if (y > 0) this._rowsToRender.add(y - 1);
+        if (y < dims.rows - 1) this._rowsToRender.add(y + 1);
       }
     }
+    const rowsToRender = this._rowsToRender;
 
     // Render each line
     for (let y = 0; y < dims.rows; y++) {
@@ -504,23 +484,11 @@ export class CanvasRenderer {
       }
     }
 
-    // Selection highlighting is now integrated into renderCellBackground/renderCellText
-    // No separate overlay pass needed - this fixes z-order issues with complex glyphs
-
-    // Link underlines are drawn during cell rendering (see renderCell)
-
-    // Render cursor (only if we're at the bottom, not scrolled)
     if (viewportY === 0 && cursor.visible) {
       this.renderCursor(cursor.x, cursor.y);
     }
 
-
-    // Update last cursor position
     this.lastCursorPosition = { x: cursor.x, y: cursor.y };
-
-    // ALWAYS clear dirty flags after rendering, regardless of forceAll.
-    // This is critical - if we don't clear after a full redraw, the dirty
-    // state persists and the next frame might not detect new changes properly.
     buffer.clearDirty();
   }
 

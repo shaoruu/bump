@@ -60,8 +60,18 @@ function useCurrentTime() {
 
 export function TabBar() {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [branchCopied, setBranchCopied] = useState(false);
+  const branchCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const time = useCurrentTime();
   const branch = useGitBranch();
+
+  const handleCopyBranch = useCallback(() => {
+    if (!branch) return;
+    window.bump.copyToClipboard(branch);
+    setBranchCopied(true);
+    if (branchCopiedTimerRef.current) clearTimeout(branchCopiedTimerRef.current);
+    branchCopiedTimerRef.current = setTimeout(() => setBranchCopied(false), 1500);
+  }, [branch]);
 
   useEffect(() => {
     window.bump.isFullscreen().then(setIsFullscreen);
@@ -157,15 +167,30 @@ export function TabBar() {
       </div>
       <div className="shrink-0 titlebar-no-drag pr-2 flex items-center gap-2 text-2xs text-text-tertiary">
         {branch && (
-          <span className="flex items-center gap-1 max-w-[120px]">
-            <svg width="9" height="9" viewBox="0 0 9 9" fill="none" className="shrink-0">
-              <circle cx="2" cy="1.5" r="1.2" fill="currentColor" />
-              <circle cx="2" cy="7.5" r="1.2" fill="currentColor" />
-              <circle cx="7" cy="3.5" r="1.2" fill="currentColor" />
-              <path d="M2 2.7V5M2 5C2 6.2 7 6 7 4.7V4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" fill="none" />
-            </svg>
-            <span className="truncate">{branch}</span>
-          </span>
+          <button
+            onClick={handleCopyBranch}
+            className={`flex items-center gap-1 max-w-[120px] px-1 h-5 transition-colors cursor-pointer ${
+              branchCopied
+                ? "text-text-secondary"
+                : "hover:text-text-secondary"
+            }`}
+          >
+            {branchCopied ? (
+              <svg width="9" height="9" viewBox="0 0 9 9" fill="none" className="shrink-0">
+                <polyline points="1,4.5 3.5,7 8,2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg width="9" height="9" viewBox="0 0 9 9" fill="none" className="shrink-0">
+                <circle cx="2" cy="1.5" r="1.2" fill="currentColor" />
+                <circle cx="2" cy="7.5" r="1.2" fill="currentColor" />
+                <circle cx="7" cy="3.5" r="1.2" fill="currentColor" />
+                <path d="M2 2.7V5M2 5C2 6.2 7 6 7 4.7V4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" fill="none" />
+              </svg>
+            )}
+            <span className="truncate">
+              {branchCopied ? "copied" : branch}
+            </span>
+          </button>
         )}
         <span>{formatTime()}</span>
       </div>
@@ -248,8 +273,10 @@ function SortableTab({
       {...(editing ? {} : listeners)}
       onClick={onSelect}
       onDoubleClick={handleDoubleClick}
-      className={`flex items-center gap-1 px-1.5 py-1 text-xs cursor-pointer transition-colors group shrink-0 ${
-        isActive ? "bg-white/[0.04] text-text-primary" : "text-text-tertiary hover:text-text-secondary hover:bg-white/[0.03]"
+      className={`flex items-center gap-1 px-2 text-xs cursor-pointer transition-colors group shrink-0 h-full ${
+        isActive
+          ? "bg-surface-2 text-text-primary"
+          : "text-text-tertiary hover:text-text-secondary"
       }`}
     >
       {editing ? (
