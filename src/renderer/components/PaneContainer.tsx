@@ -458,10 +458,25 @@ function usePaneActions(paneId: string, onClose: () => void) {
   }, [paneId, onClose]);
 
   const closePane = useCallback(() => {
-    const { paneTree, workspaces } = useAppStore.getState();
+    const { paneTree, workspaces, activeWorkspaceId, openConfirm } = useAppStore.getState();
     if (paneTree.type === "leaf" && workspaces.length <= 1) {
       terminalRegistry.destroy(paneId);
       window.bump.closeWindow();
+      onClose();
+      return;
+    }
+    if (paneTree.type === "leaf" && workspaces.length > 1) {
+      const ws = workspaces.find((w) => w.id === activeWorkspaceId);
+      openConfirm({
+        title: `Close "${ws?.name ?? "workspace"}"?`,
+        onConfirm: () => {
+          const s = useAppStore.getState();
+          for (const [id] of s.panes) {
+            terminalRegistry.destroy(id);
+          }
+          s.closeWorkspace(s.activeWorkspaceId);
+        },
+      });
       onClose();
       return;
     }

@@ -3,7 +3,7 @@ import { PaneContainer } from "./components/PaneContainer.js";
 import { TabBar } from "./components/TabBar.js";
 import { LoginView } from "./components/LoginView.js";
 import { CommandPalette } from "./components/CommandPalette.js";
-import { PromptDialog } from "./components/Dialog.js";
+import { PromptDialog, ConfirmDialog } from "./components/Dialog.js";
 import { useAppStore } from "./store/appStore.js";
 import { registerCoreActions, getActions, initUiScale } from "./lib/actions.js";
 import { terminalRegistry } from "./components/TerminalRegistry.js";
@@ -17,6 +17,8 @@ export function App() {
   const setAuthChecked = useAppStore((s) => s.setAuthChecked);
   const promptDialog = useAppStore((s) => s.promptDialog);
   const closePrompt = useAppStore((s) => s.closePrompt);
+  const confirmDialog = useAppStore((s) => s.confirmDialog);
+  const closeConfirm = useAppStore((s) => s.closeConfirm);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteMode, setPaletteMode] = useState<"actions" | "themes">("actions");
@@ -145,6 +147,15 @@ export function App() {
           submitLabel={promptDialog.submitLabel}
           onSubmit={promptDialog.onSubmit}
           onClose={closePrompt}
+        />
+      )}
+      {confirmDialog && (
+        <ConfirmDialog
+          open
+          title={confirmDialog.title}
+          confirmLabel={confirmDialog.confirmLabel}
+          onConfirm={confirmDialog.onConfirm}
+          onClose={closeConfirm}
         />
       )}
     </div>

@@ -174,14 +174,28 @@ export function registerCoreActions(
     icon: "x",
     category: "terminal",
     execute: () => {
-      const { activePaneId, closePane, paneTree, workspaces } = useAppStore.getState();
+      const { activePaneId, closePane, paneTree, workspaces, activeWorkspaceId, openConfirm } = useAppStore.getState();
       if (paneTree.type === "leaf" && workspaces.length <= 1) {
         terminalRegistry.destroy(activePaneId);
         window.bump.closeWindow();
         return;
       }
-      closePane(activePaneId);
+      if (paneTree.type === "leaf" && workspaces.length > 1) {
+        const ws = workspaces.find((w) => w.id === activeWorkspaceId);
+        openConfirm({
+          title: `Close "${ws?.name ?? "workspace"}"?`,
+          onConfirm: () => {
+            const s = useAppStore.getState();
+            for (const [paneId] of s.panes) {
+              terminalRegistry.destroy(paneId);
+            }
+            s.closeWorkspace(s.activeWorkspaceId);
+          },
+        });
+        return;
+      }
       terminalRegistry.destroy(activePaneId);
+      closePane(activePaneId);
     },
   });
 
@@ -235,10 +249,17 @@ export function registerCoreActions(
     execute: () => {
       const state = useAppStore.getState();
       if (state.workspaces.length <= 1) return;
-      for (const [paneId] of state.panes) {
-        terminalRegistry.destroy(paneId);
-      }
-      state.closeWorkspace(state.activeWorkspaceId);
+      const ws = state.workspaces.find((w) => w.id === state.activeWorkspaceId);
+      state.openConfirm({
+        title: `Close "${ws?.name ?? "workspace"}"?`,
+        onConfirm: () => {
+          const s = useAppStore.getState();
+          for (const [paneId] of s.panes) {
+            terminalRegistry.destroy(paneId);
+          }
+          s.closeWorkspace(s.activeWorkspaceId);
+        },
+      });
     },
   });
 

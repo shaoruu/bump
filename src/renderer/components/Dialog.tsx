@@ -31,6 +31,64 @@ export function Dialog({ open, onClose, children }: DialogProps) {
   );
 }
 
+interface ConfirmDialogProps {
+  open: boolean;
+  title: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
+export function ConfirmDialog({
+  open,
+  title,
+  confirmLabel = "close",
+  onConfirm,
+  onClose,
+}: ConfirmDialogProps) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    requestAnimationFrame(() => buttonRef.current?.focus());
+  }, []);
+
+  const handleClose = useCallback(() => {
+    onClose();
+    requestAnimationFrame(() => terminalRegistry.focusActivePane());
+  }, [onClose]);
+
+  const handleConfirm = useCallback(() => {
+    onConfirm();
+    handleClose();
+  }, [onConfirm, handleClose]);
+
+  return (
+    <Dialog open={open} onClose={handleClose}>
+      <div className="w-[320px] bg-surface-1 border border-white/[0.08] shadow-2xl p-4">
+        <p className="text-sm text-text-primary mb-4">{title}</p>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={handleClose}
+            className="text-xs text-text-secondary px-3 py-1.5 hover:bg-surface-2 transition-colors"
+          >
+            cancel
+          </button>
+          <button
+            ref={buttonRef}
+            onClick={handleConfirm}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleConfirm();
+            }}
+            className="text-xs text-red-400 bg-red-400/10 px-3 py-1.5 hover:bg-red-400/20 transition-colors"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
 interface PromptDialogProps {
   open: boolean;
   title: string;

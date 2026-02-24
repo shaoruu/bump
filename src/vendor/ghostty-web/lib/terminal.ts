@@ -657,7 +657,6 @@ export class Terminal implements ITerminalCore {
 
     const metrics = this.renderer!.getMetrics();
     this.canvas!.style.width = `${metrics.width * cols}px`;
-    this.canvas!.style.height = `${metrics.height * rows}px`;
 
     this.resizeEmitter.fire({ cols, rows });
     this.renderer!.render(this.wasmTerm!, true, this.viewportY, this);

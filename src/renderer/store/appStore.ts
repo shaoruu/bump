@@ -67,6 +67,12 @@ interface PromptDialogConfig {
   onSubmit: (value: string) => void;
 }
 
+interface ConfirmDialogConfig {
+  title: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+}
+
 interface AppState {
   workspaces: Workspace[];
   activeWorkspaceId: string;
@@ -79,6 +85,10 @@ interface AppState {
   promptDialog: PromptDialogConfig | null;
   openPrompt: (config: PromptDialogConfig) => void;
   closePrompt: () => void;
+
+  confirmDialog: ConfirmDialogConfig | null;
+  openConfirm: (config: ConfirmDialogConfig) => void;
+  closeConfirm: () => void;
 
   panes: Map<string, Pane>;
   paneTree: PaneNode;
@@ -435,6 +445,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   promptDialog: null,
   openPrompt: (config) => set({ promptDialog: config }),
   closePrompt: () => set({ promptDialog: null }),
+
+  confirmDialog: null,
+  openConfirm: (config) => set({ confirmDialog: config }),
+  closeConfirm: () => set({ confirmDialog: null }),
 
   panes: new Map([[initialPaneId, { id: initialPaneId, terminalId: null }]]),
   paneTree: { type: "leaf", paneId: initialPaneId },

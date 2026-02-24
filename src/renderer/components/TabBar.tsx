@@ -46,6 +46,40 @@ function useGitBranch(): string | null {
   return branch;
 }
 
+function useTerminalCwd(): string | null {
+  const [cwd, setCwd] = useState<string | null>(null);
+  const [home, setHome] = useState<string | null>(null);
+  const terminalId = useAppStore((s) => s.panes.get(s.activePaneId)?.terminalId ?? null);
+
+  useEffect(() => {
+    window.bump.getCwd().then(setHome);
+  }, []);
+
+  useEffect(() => {
+    if (!terminalId) {
+      setCwd(null);
+      return;
+    }
+
+    let cancelled = false;
+    const check = async () => {
+      const dir = await window.bump.getTerminalCwd(terminalId);
+      if (!cancelled) setCwd(dir);
+    };
+
+    check();
+    const interval = setInterval(check, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [terminalId]);
+
+  if (!cwd) return null;
+  if (home && cwd.startsWith(home)) return "~" + cwd.slice(home.length);
+  return cwd;
+}
+
 function useCurrentTime() {
   const [time, setTime] = useState(() => new Date());
 
@@ -64,6 +98,7 @@ export function TabBar() {
   const branchCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const time = useCurrentTime();
   const branch = useGitBranch();
+  const terminalCwd = useTerminalCwd();
 
   const handleCopyBranch = useCallback(() => {
     if (!branch) return;
@@ -94,20 +129,28 @@ export function TabBar() {
     return `${h}:${minutes}${ampm}`;
   };
 
+  const openConfirm = useAppStore((s) => s.openConfirm);
+
   const handleCloseWorkspace = useCallback((wsId: string) => {
     const state = useAppStore.getState();
     if (state.workspaces.length <= 1) return;
 
-    const panes = wsId === state.activeWorkspaceId
-      ? state.panes
-      : new Map(state.workspaces.find(w => w.id === wsId)!.panes);
+    const ws = state.workspaces.find((w) => w.id === wsId);
+    openConfirm({
+      title: `Close "${ws?.name ?? "workspace"}"?`,
+      onConfirm: () => {
+        const current = useAppStore.getState();
+        const panes = wsId === current.activeWorkspaceId
+          ? current.panes
+          : new Map(current.workspaces.find((w) => w.id === wsId)!.panes);
 
-    for (const [paneId] of panes) {
-      terminalRegistry.destroy(paneId);
-    }
-
-    closeWorkspace(wsId);
-  }, [closeWorkspace]);
+        for (const [paneId] of panes) {
+          terminalRegistry.destroy(paneId);
+        }
+        current.closeWorkspace(wsId);
+      },
+    });
+  }, [openConfirm]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -166,6 +209,9 @@ export function TabBar() {
         </button>
       </div>
       <div className="shrink-0 titlebar-no-drag pr-2 flex items-center gap-2 text-2xs text-text-tertiary">
+        {terminalCwd && (
+          <span className="truncate max-w-[200px] opacity-70">{terminalCwd}</span>
+        )}
         {branch && (
           <button
             onClick={handleCopyBranch}
