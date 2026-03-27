@@ -247,7 +247,7 @@ export class SelectionManager {
   // ── Drag interaction ──────────────────────────────────────────────────────
 
   private beginDrag(e: MouseEvent): void {
-    const cell = this.pixelToCell(e.offsetX, e.offsetY);
+    const cell = this.mouseEventToCell(e);
     const absoluteRow = this.viewportRowToAbsolute(cell.row);
 
     this.markRangeDirty();
@@ -323,7 +323,7 @@ export class SelectionManager {
 
   private onCanvasMouseMove(e: MouseEvent): void {
     if (this.drag.type === 'idle') return;
-    const cell = this.pixelToCell(e.offsetX, e.offsetY);
+    const cell = this.mouseEventToCell(e);
     this.extendDrag(cell.col, cell.row, this.viewportRowToAbsolute(cell.row));
   }
 
@@ -341,11 +341,11 @@ export class SelectionManager {
   private onCanvasClick(e: MouseEvent): void {
     if (e.detail === 2) {
       if (!this.wordDragOccurred) {
-        const cell = this.pixelToCell(e.offsetX, e.offsetY);
+        const cell = this.mouseEventToCell(e);
         this.selectWordAt(cell.col, cell.row);
       }
     } else if (e.detail === 3) {
-      const cell = this.pixelToCell(e.offsetX, e.offsetY);
+      const cell = this.mouseEventToCell(e);
       this.selectLineAt(cell.row);
     }
   }
@@ -353,7 +353,7 @@ export class SelectionManager {
   private onCanvasContextMenu(e: MouseEvent): void {
     e.preventDefault();
     if (!this.hasSelection()) {
-      const cell = this.pixelToCell(e.offsetX, e.offsetY);
+      const cell = this.mouseEventToCell(e);
       this.selectWordAt(cell.col, cell.row);
     }
     this.canvas.dispatchEvent(
@@ -385,7 +385,7 @@ export class SelectionManager {
 
     const clampedX = Math.max(rect.left, Math.min(e.clientX, rect.right)) - rect.left;
     const clampedY = Math.max(rect.top, Math.min(e.clientY, rect.bottom)) - rect.top;
-    const cell = this.pixelToCell(clampedX, clampedY);
+    const cell = this.localXYToCell(clampedX, clampedY);
     this.extendDrag(cell.col, cell.row, this.viewportRowToAbsolute(cell.row));
   }
 
@@ -524,12 +524,25 @@ export class SelectionManager {
     return absoluteRow - this.wasmTerm.getScrollbackLength() + this.getViewportY();
   }
 
-  private pixelToCell(x: number, y: number): { col: number; row: number } {
-    const metrics = this.renderer.getMetrics();
-    return {
-      col: Math.max(0, Math.min(Math.floor(x / metrics.width), this.terminal.cols - 1)),
-      row: Math.max(0, Math.min(Math.floor(y / metrics.height), this.terminal.rows - 1)),
-    };
+  private mouseEventToCell(e: MouseEvent): { col: number; row: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    return this.localXYToCell(e.clientX - rect.left, e.clientY - rect.top);
+  }
+
+  private localXYToCell(lx: number, ly: number): { col: number; row: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return { col: 0, row: 0 };
+    }
+    const col = Math.min(
+      this.terminal.cols - 1,
+      Math.max(0, Math.floor((lx / rect.width) * this.terminal.cols))
+    );
+    const row = Math.min(
+      this.terminal.rows - 1,
+      Math.max(0, Math.floor((ly / rect.height) * this.terminal.rows))
+    );
+    return { col, row };
   }
 
   private normalizeSelection(): SelectionCoordinates | null {

@@ -166,10 +166,10 @@ export interface MouseTrackingConfig {
   hasMouseTracking: () => boolean;
   /** Check if SGR extended mouse mode is enabled (mode 1006) */
   hasSgrMouseMode: () => boolean;
-  /** Get cell dimensions for pixel to cell conversion */
-  getCellDimensions: () => { width: number; height: number };
-  /** Get canvas/container offset for accurate position calculation */
-  getCanvasOffset: () => { left: number; top: number };
+  /** Canvas layout rect in viewport coordinates (must match mouse event space) */
+  getCanvasRect: () => DOMRect;
+  /** Terminal grid size for mapping client coordinates to cells */
+  getGridDimensions: () => { cols: number; rows: number };
 }
 
 export class InputHandler {
@@ -738,22 +738,20 @@ export class InputHandler {
   private pixelToCell(event: MouseEvent): { col: number; row: number } | null {
     if (!this.mouseConfig) return null;
 
-    const dims = this.mouseConfig.getCellDimensions();
-    const offset = this.mouseConfig.getCanvasOffset();
+    const rect = this.mouseConfig.getCanvasRect();
+    const { cols, rows } = this.mouseConfig.getGridDimensions();
 
-    if (dims.width <= 0 || dims.height <= 0) return null;
+    if (rect.width <= 0 || rect.height <= 0 || cols <= 0 || rows <= 0) return null;
 
-    const x = event.clientX - offset.left;
-    const y = event.clientY - offset.top;
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
 
-    // Convert to 1-based cell coordinates (terminal uses 1-based)
-    const col = Math.floor(x / dims.width) + 1;
-    const row = Math.floor(y / dims.height) + 1;
+    const col0 = Math.floor((x / rect.width) * cols);
+    const row0 = Math.floor((y / rect.height) * rows);
 
-    // Clamp to valid range (at least 1)
     return {
-      col: Math.max(1, col),
-      row: Math.max(1, row),
+      col: Math.max(1, Math.min(col0 + 1, cols)),
+      row: Math.max(1, Math.min(row0 + 1, rows)),
     };
   }
 

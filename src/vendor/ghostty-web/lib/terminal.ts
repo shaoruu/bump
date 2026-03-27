@@ -411,15 +411,9 @@ export class Terminal implements ITerminalCore {
       const wasmTerm = this.wasmTerm;
       const mouseConfig: MouseTrackingConfig = {
         hasMouseTracking: () => wasmTerm?.hasMouseTracking() ?? false,
-        hasSgrMouseMode: () => wasmTerm?.getMode(1006, false) ?? true, // SGR extended mode
-        getCellDimensions: () => ({
-          width: renderer.charWidth,
-          height: renderer.charHeight,
-        }),
-        getCanvasOffset: () => {
-          const rect = canvas.getBoundingClientRect();
-          return { left: rect.left, top: rect.top };
-        },
+        hasSgrMouseMode: () => wasmTerm?.getMode(1006, false) ?? true,
+        getCanvasRect: () => canvas.getBoundingClientRect(),
+        getGridDimensions: () => ({ cols: this.cols, rows: this.rows }),
       };
 
       // Create input handler
@@ -1176,6 +1170,17 @@ export class Terminal implements ITerminalCore {
     }
   }
 
+  private clientToViewportCell(clientX: number, clientY: number): { col: number; row: number } | null {
+    if (!this.canvas) return null;
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    const lx = clientX - rect.left;
+    const ly = clientY - rect.top;
+    const col = Math.min(this.cols - 1, Math.max(0, Math.floor((lx / rect.width) * this.cols)));
+    const row = Math.min(this.rows - 1, Math.max(0, Math.floor((ly / rect.height) * this.rows)));
+    return { col, row };
+  }
+
   private handleMouseMove = (e: MouseEvent): void => {
     if (!this.canvas || !this.renderer || !this.wasmTerm) return;
     if (!this.linkDetector) return;
@@ -1204,14 +1209,13 @@ export class Terminal implements ITerminalCore {
   private processMouseMove(e: MouseEvent): void {
     if (!this.canvas || !this.renderer || !this.linkDetector || !this.wasmTerm) return;
 
-    // Convert mouse coordinates to terminal cell position
-    const rect = this.canvas.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) / this.renderer.charWidth);
-    const y = Math.floor((e.clientY - rect.top) / this.renderer.charHeight);
+    const cell = this.clientToViewportCell(e.clientX, e.clientY);
+    if (!cell) return;
+    const x = cell.col;
 
     // Get hyperlink_id directly from the cell at this position
     // Must account for viewportY (scrollback position)
-    const viewportRow = y; // Row in the viewport (0 to rows-1)
+    const viewportRow = cell.row;
     let hyperlinkId = 0;
 
     // When scrolled, fetch from scrollback or screen based on position
@@ -1357,13 +1361,12 @@ export class Terminal implements ITerminalCore {
     // rather than relying on cached hover state (avoids async races)
     if (!this.canvas || !this.renderer || !this.linkDetector || !this.wasmTerm) return;
 
-    // Get click position
-    const rect = this.canvas.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) / this.renderer.charWidth);
-    const y = Math.floor((e.clientY - rect.top) / this.renderer.charHeight);
+    const clickCell = this.clientToViewportCell(e.clientX, e.clientY);
+    if (!clickCell) return;
+    const x = clickCell.col;
 
     // Calculate buffer row (same logic as processMouseMove)
-    const viewportRow = y;
+    const viewportRow = clickCell.row;
     const scrollbackLength = this.wasmTerm.getScrollbackLength();
     let bufferRow: number;
 

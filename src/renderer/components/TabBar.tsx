@@ -18,68 +18,6 @@ import { CSS } from "@dnd-kit/utilities";
 import { useAppStore } from "../store/appStore.js";
 import { terminalRegistry } from "./TerminalRegistry.js";
 
-
-function useGitBranch(): string | null {
-  const [branch, setBranch] = useState<string | null>(null);
-  const terminalId = useAppStore((s) => s.panes.get(s.activePaneId)?.terminalId ?? null);
-
-  useEffect(() => {
-    if (!terminalId) {
-      setBranch(null);
-      return;
-    }
-
-    let cancelled = false;
-    const check = async () => {
-      const b = await window.bump.getTerminalGitBranch(terminalId);
-      if (!cancelled) setBranch(b);
-    };
-
-    check();
-    const interval = setInterval(check, 2000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [terminalId]);
-
-  return branch;
-}
-
-function useTerminalCwd(): string | null {
-  const [cwd, setCwd] = useState<string | null>(null);
-  const [home, setHome] = useState<string | null>(null);
-  const terminalId = useAppStore((s) => s.panes.get(s.activePaneId)?.terminalId ?? null);
-
-  useEffect(() => {
-    window.bump.getCwd().then(setHome);
-  }, []);
-
-  useEffect(() => {
-    if (!terminalId) {
-      setCwd(null);
-      return;
-    }
-
-    let cancelled = false;
-    const check = async () => {
-      const dir = await window.bump.getTerminalCwd(terminalId);
-      if (!cancelled) setCwd(dir);
-    };
-
-    check();
-    const interval = setInterval(check, 2000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [terminalId]);
-
-  if (!cwd) return null;
-  if (home && cwd.startsWith(home)) return "~" + cwd.slice(home.length);
-  return cwd;
-}
-
 function useCurrentTime() {
   const [time, setTime] = useState(() => new Date());
 
@@ -94,19 +32,7 @@ function useCurrentTime() {
 
 export function TabBar() {
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [branchCopied, setBranchCopied] = useState(false);
-  const branchCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const time = useCurrentTime();
-  const branch = useGitBranch();
-  const terminalCwd = useTerminalCwd();
-
-  const handleCopyBranch = useCallback(() => {
-    if (!branch) return;
-    window.bump.copyToClipboard(branch);
-    setBranchCopied(true);
-    if (branchCopiedTimerRef.current) clearTimeout(branchCopiedTimerRef.current);
-    branchCopiedTimerRef.current = setTimeout(() => setBranchCopied(false), 1500);
-  }, [branch]);
 
   useEffect(() => {
     window.bump.isFullscreen().then(setIsFullscreen);
@@ -208,36 +134,7 @@ export function TabBar() {
           +
         </button>
       </div>
-      <div className="shrink-0 titlebar-no-drag pr-2 flex items-center gap-2 text-2xs text-text-tertiary">
-        {terminalCwd && (
-          <span className="truncate max-w-[200px] opacity-70">{terminalCwd}</span>
-        )}
-        {branch && (
-          <button
-            onClick={handleCopyBranch}
-            className={`flex items-center gap-1 max-w-[120px] px-1 h-5 transition-colors cursor-pointer ${
-              branchCopied
-                ? "text-text-secondary"
-                : "hover:text-text-secondary"
-            }`}
-          >
-            {branchCopied ? (
-              <svg width="9" height="9" viewBox="0 0 9 9" fill="none" className="shrink-0">
-                <polyline points="1,4.5 3.5,7 8,2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : (
-              <svg width="9" height="9" viewBox="0 0 9 9" fill="none" className="shrink-0">
-                <circle cx="2" cy="1.5" r="1.2" fill="currentColor" />
-                <circle cx="2" cy="7.5" r="1.2" fill="currentColor" />
-                <circle cx="7" cy="3.5" r="1.2" fill="currentColor" />
-                <path d="M2 2.7V5M2 5C2 6.2 7 6 7 4.7V4.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" fill="none" />
-              </svg>
-            )}
-            <span className="truncate">
-              {branchCopied ? "copied" : branch}
-            </span>
-          </button>
-        )}
+      <div className="shrink-0 titlebar-no-drag pr-2 flex items-center text-2xs text-text-tertiary">
         <span>{formatTime()}</span>
       </div>
     </div>

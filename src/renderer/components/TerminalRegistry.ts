@@ -38,6 +38,7 @@ function ensureGhosttyInit(): Promise<void> {
 
 interface TerminalCallbacks {
   onReady: (terminalId: string) => void;
+  onVisible: (paneId: string) => void;
   onExit: (paneId: string) => void;
 }
 
@@ -46,6 +47,8 @@ interface TerminalEntry {
   terminal: Terminal | null;
   terminalId: string | null;
   cleanup: (() => void) | null;
+  isReady: boolean;
+  isVisible: boolean;
   callbacks: TerminalCallbacks;
 }
 
@@ -69,12 +72,15 @@ class TerminalRegistry {
     container.style.background = this.currentTheme?.background ?? "#0a0a0a";
     container.style.position = "relative";
     container.style.overflow = "hidden";
+    container.style.opacity = "0";
 
     const entry: TerminalEntry = {
       container,
       terminal: null,
       terminalId: null,
       cleanup: null,
+      isReady: false,
+      isVisible: false,
       callbacks,
     };
 
@@ -96,6 +102,9 @@ class TerminalRegistry {
 
     entry.terminalId = null;
     entry.cleanup = null;
+    entry.isReady = false;
+    entry.isVisible = false;
+    entry.container.style.opacity = "0";
 
     this.initTerminal(paneId, entry);
   }
@@ -145,16 +154,35 @@ class TerminalRegistry {
     entry.terminal = terminal;
     terminal.open(entry.container);
 
+    let revealTimeoutId: number | null = null;
+    let isRevealScheduled = false;
+
+    const revealTerminal = (delayMs: number) => {
+      if (entry.isVisible || isRevealScheduled) return;
+      isRevealScheduled = true;
+      revealTimeoutId = window.setTimeout(() => {
+        revealTimeoutId = null;
+        isRevealScheduled = false;
+        if (!this.entries.has(paneId) || entry.isVisible) return;
+        entry.isVisible = true;
+        entry.container.style.opacity = "1";
+        entry.callbacks.onVisible(paneId);
+      }, delayMs);
+    };
+
     requestAnimationFrame(() => {
       fitAddon.fit();
 
       window.bump.createTerminal(cwd).then(({ id }) => {
         entry.terminalId = id;
+        entry.isReady = true;
         const { cols, rows } = terminal;
         window.bump.resizeTerminal(id, cols, rows);
         entry.callbacks.onReady(id);
+        revealTerminal(1200);
       });
     });
+
 
     const inputDisposable = terminal.onData((data) => {
       if (entry.terminalId) {
@@ -204,6 +232,9 @@ class TerminalRegistry {
         realUnsubData = window.bump.onTerminalData(
           entry.terminalId,
           (data) => {
+            if (data.length > 0) {
+              revealTerminal(180);
+            }
             writeBuffer += data;
             if (!writeRaf) {
               writeRaf = requestAnimationFrame(flushWrites);
@@ -248,6 +279,7 @@ class TerminalRegistry {
       clearTimeout(waitTimeout);
       resizeObserver.disconnect();
       if (resizeTimeout) cancelAnimationFrame(resizeTimeout);
+      if (revealTimeoutId) clearTimeout(revealTimeoutId);
       terminal.dispose();
       entry.terminal = null;
       if (entry.terminalId) {

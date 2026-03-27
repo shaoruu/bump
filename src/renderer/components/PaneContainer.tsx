@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef, useEffect, useState } from "react";
+import { memo, useCallback, useRef, useEffect, useState, useMemo } from "react";
 import { useAppStore } from "../store/appStore.js";
 import type { PaneNode } from "../store/appStore.js";
 import { SplitView } from "./SplitView.js";
@@ -18,6 +18,69 @@ function shellEscape(path: string): string {
   return `'${path.replace(/'/g, "'\\''")}'`;
 }
 export const pendingInputs = new Map<string, string>();
+
+function useTerminalCwd(paneId: string): string | null {
+  const [cwd, setCwd] = useState<string | null>(null);
+  const [home, setHome] = useState<string | null>(null);
+  const terminalId = useAppStore((s) => s.panes.get(paneId)?.terminalId ?? null);
+
+  useEffect(() => {
+    window.bump.getCwd().then(setHome);
+  }, []);
+
+  useEffect(() => {
+    if (!terminalId) {
+      setCwd(null);
+      return;
+    }
+
+    let cancelled = false;
+    const check = async () => {
+      const dir = await window.bump.getTerminalCwd(terminalId);
+      if (!cancelled) setCwd(dir);
+    };
+
+    check();
+    const interval = setInterval(check, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [terminalId]);
+
+  return useMemo(() => {
+    if (!cwd) return null;
+    if (home && cwd.startsWith(home)) return "~" + cwd.slice(home.length);
+    return cwd;
+  }, [cwd, home]);
+}
+
+function useGitBranch(paneId: string): string | null {
+  const [branch, setBranch] = useState<string | null>(null);
+  const terminalId = useAppStore((s) => s.panes.get(paneId)?.terminalId ?? null);
+
+  useEffect(() => {
+    if (!terminalId) {
+      setBranch(null);
+      return;
+    }
+
+    let cancelled = false;
+    const check = async () => {
+      const b = await window.bump.getTerminalGitBranch(terminalId);
+      if (!cancelled) setBranch(b);
+    };
+
+    check();
+    const interval = setInterval(check, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [terminalId]);
+
+  return branch;
+}
 
 function countLeaves(node: PaneNode): number {
   if (node.type === "leaf") return 1;
@@ -95,6 +158,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
   const [contextMenu, openContextMenu, closeContextMenu] = useMenuPosition();
   const [headerContextMenu, openHeaderContextMenu, closeHeaderContextMenu] = useMenuPosition();
   const [isReady, setIsReady] = useState(false);
+  const [isTerminalVisible, setIsTerminalVisible] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const enterCountRef = useRef(0);
@@ -122,6 +186,9 @@ function PaneSlot({ paneId }: { paneId: string }) {
             }, 300);
           }
         },
+        onVisible: () => {
+          setIsTerminalVisible(true);
+        },
         onExit: handleTerminalExit,
       },
       initialCwd
@@ -129,8 +196,9 @@ function PaneSlot({ paneId }: { paneId: string }) {
 
     if (entry.terminalId) {
       terminalIdRef.current = entry.terminalId;
-      setIsReady(true);
     }
+    setIsReady(entry.isReady);
+    setIsTerminalVisible(entry.isVisible);
 
     slot.appendChild(entry.container);
 
@@ -312,10 +380,12 @@ function PaneSlot({ paneId }: { paneId: string }) {
   }, [paneId]);
 
   const shortTitle = title.split("/").slice(-2).join("/");
+  const cwd = useTerminalCwd(paneId);
+  const branch = useGitBranch(paneId);
 
   return (
     <div
-      className={`h-full w-full relative flex flex-col transition-[filter,opacity] ${isDragging ? "opacity-50" : !isActive ? "brightness-[0.85]" : ""}`}
+      className={`h-full w-full relative flex flex-col transition-[filter,opacity] ${isDragging ? "opacity-50" : !isActive ? "brightness-[0.7]" : ""}`}
       onMouseDown={handleFocus}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -337,42 +407,52 @@ function PaneSlot({ paneId }: { paneId: string }) {
         }}
       >
         <span className="flex-1 truncate">{shortTitle}</span>
-        <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover/header:opacity-100 transition-opacity">
-          <Tooltip label={copied ? "Copied!" : "Copy output path"}>
-            <button
-              onClick={handleCopyOutputPath}
-              className={`p-0.5 transition-colors ${
-                copied
-                  ? "text-accent"
-                  : "text-text-tertiary hover:text-text-secondary"
-              }`}
-            >
-              {copied ? <CheckIcon size={12} /> : <CopyIcon size={12} />}
-            </button>
-          </Tooltip>
-          <Tooltip label="Fix further">
-            <button
-              onClick={handleFixFurther}
-              className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
-            >
-              <ZapIcon size={12} />
-            </button>
-          </Tooltip>
-          <Tooltip label="More">
-            <button
-              ref={menuButtonRef}
-              onClick={() => setMenuOpen((prev) => !prev)}
-              className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
-            >
-              <MoreHorizontalIcon size={12} />
-            </button>
-          </Tooltip>
+        <div className="shrink-0 grid items-center ml-2">
+          <div className="col-start-1 row-start-1 flex items-center gap-2 opacity-50 transition-opacity group-hover/header:opacity-0">
+            {cwd && <span dir="rtl" className="truncate max-w-[200px]">{cwd}</span>}
+            {branch && <span className="truncate max-w-[100px]">{branch}</span>}
+          </div>
+          <div className="col-start-1 row-start-1 flex items-center justify-end gap-0.5 opacity-0 group-hover/header:opacity-100 transition-opacity">
+            <Tooltip label={copied ? "Copied!" : "Copy output path"}>
+              <button
+                onClick={handleCopyOutputPath}
+                className={`p-0.5 transition-colors ${
+                  copied
+                    ? "text-accent"
+                    : "text-text-tertiary hover:text-text-secondary"
+                }`}
+              >
+                {copied ? <CheckIcon size={12} /> : <CopyIcon size={12} />}
+              </button>
+            </Tooltip>
+            <Tooltip label="Fix further">
+              <button
+                onClick={handleFixFurther}
+                className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
+              >
+                <ZapIcon size={12} />
+              </button>
+            </Tooltip>
+            <Tooltip label="More">
+              <button
+                ref={menuButtonRef}
+                onClick={() => setMenuOpen((prev) => !prev)}
+                className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
+              >
+                <MoreHorizontalIcon size={12} />
+              </button>
+            </Tooltip>
+          </div>
         </div>
       </div>
       <div ref={slotRef} className="flex-1 min-h-0" />
-      {!isReady && (
-        <div className="absolute inset-x-0 top-6 bottom-0 z-20 flex items-center justify-center bg-surface-0">
-          <div className="w-1.5 h-3.5 bg-accent/40 animate-pulse" />
+      {!isTerminalVisible && (
+        <div className="absolute inset-x-0 top-6 bottom-0 z-20 flex items-center justify-center bg-surface-0 px-6">
+          <div className="flex items-center gap-2 border border-white/[0.08] bg-surface-1 px-4 py-3 text-xs text-text-secondary shadow-lg">
+            <span className="text-accent">$</span>
+            <span>{isReady ? "starting shell..." : "starting terminal..."}</span>
+            <span className="h-3.5 w-1.5 bg-accent/50 animate-pulse" />
+          </div>
         </div>
       )}
       {dropZone && <DropOverlay zone={dropZone} />}
