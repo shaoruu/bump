@@ -345,6 +345,7 @@ function buildCssVars(theme: GhosttyTheme): Record<string, string> {
     "--text-primary": hexToRgb(theme.foreground),
     "--text-secondary": hexToRgb(lighten(theme.foreground, -0.3)),
     "--text-tertiary": hexToRgb(lighten(theme.foreground, -0.5)),
+    "--accent": hexToRgb(mix(theme.palette[12], theme.foreground, 0.7)),
   };
 }
 
@@ -394,4 +395,15 @@ function lighten(hex: string, amount: number): string {
     b = Math.max(0, b + Math.round(b * amount));
   }
   return "#" + [r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("");
+}
+
+function mix(hexA: string, hexB: string, weightB: number): string {
+  const a = hexA.replace("#", "");
+  const b = hexB.replace("#", "");
+  const blend = (start: number, end: number) =>
+    Math.round(start * (1 - weightB) + end * weightB);
+  const r = blend(parseInt(a.substring(0, 2), 16), parseInt(b.substring(0, 2), 16));
+  const g = blend(parseInt(a.substring(2, 4), 16), parseInt(b.substring(2, 4), 16));
+  const bChannel = blend(parseInt(a.substring(4, 6), 16), parseInt(b.substring(4, 6), 16));
+  return "#" + [r, g, bChannel].map((c) => c.toString(16).padStart(2, "0")).join("");
 }

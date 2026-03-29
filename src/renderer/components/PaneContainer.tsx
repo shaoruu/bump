@@ -395,8 +395,8 @@ function PaneSlot({ paneId }: { paneId: string }) {
       <div
         className={`h-6 shrink-0 flex items-center px-2 text-2xs select-none border-b cursor-grab active:cursor-grabbing group/header ${
           isActive
-            ? "bg-accent/15 text-accent border-accent/20"
-            : "bg-surface-1 text-text-tertiary border-white/[0.06]"
+            ? "bg-surface-2 text-[rgb(var(--chrome-text-primary))] border-border"
+            : "bg-surface-1 text-[rgb(var(--chrome-text-secondary))] border-white/[0.06]"
         }`}
         draggable
         onDragStart={handleDragStart}
@@ -406,11 +406,13 @@ function PaneSlot({ paneId }: { paneId: string }) {
           openHeaderContextMenu({ x: e.clientX, y: e.clientY });
         }}
       >
-        <span className="flex-1 truncate">{shortTitle}</span>
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+          {cwd && <span dir="rtl" className="truncate">{'\u200E'}{cwd}</span>}
+          {branch && <span className="shrink-0 opacity-50">{branch}</span>}
+        </div>
         <div className="shrink-0 grid items-center ml-2">
           <div className="col-start-1 row-start-1 flex items-center gap-2 opacity-50 transition-opacity group-hover/header:opacity-0">
-            {cwd && <span dir="rtl" className="truncate max-w-[200px]">{cwd}</span>}
-            {branch && <span className="truncate max-w-[100px]">{branch}</span>}
+            <span className="truncate max-w-[120px]">{shortTitle}</span>
           </div>
           <div className="col-start-1 row-start-1 flex items-center justify-end gap-0.5 opacity-0 group-hover/header:opacity-100 transition-opacity">
             <Tooltip label={copied ? "Copied!" : "Copy output path"}>
@@ -419,7 +421,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
                 className={`p-0.5 transition-colors ${
                   copied
                     ? "text-accent"
-                    : "text-text-tertiary hover:text-text-secondary"
+                    : "text-[rgb(var(--chrome-text-secondary))] hover:text-[rgb(var(--chrome-text-primary))]"
                 }`}
               >
                 {copied ? <CheckIcon size={12} /> : <CopyIcon size={12} />}
@@ -428,7 +430,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
             <Tooltip label="Fix further">
               <button
                 onClick={handleFixFurther}
-                className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
+                className="p-0.5 text-[rgb(var(--chrome-text-secondary))] hover:text-[rgb(var(--chrome-text-primary))] transition-colors"
               >
                 <ZapIcon size={12} />
               </button>
@@ -437,7 +439,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
               <button
                 ref={menuButtonRef}
                 onClick={() => setMenuOpen((prev) => !prev)}
-                className="p-0.5 text-text-tertiary hover:text-text-secondary transition-colors"
+                className="p-0.5 text-[rgb(var(--chrome-text-secondary))] hover:text-[rgb(var(--chrome-text-primary))] transition-colors"
               >
                 <MoreHorizontalIcon size={12} />
               </button>

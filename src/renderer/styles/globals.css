@@ -15,8 +15,10 @@
   --text-primary: 230 230 230;
   --text-secondary: 140 140 140;
   --text-tertiary: 90 90 90;
+  --chrome-text-primary: 230 230 230;
+  --chrome-text-secondary: 140 140 140;
 
-  --accent: 82 182 154;
+  --accent: 142 166 196;
   --border: 255 255 255;
 
   --scrollbar-thumb: rgba(255, 255, 255, 0.06);
