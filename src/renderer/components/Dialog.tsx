@@ -64,7 +64,7 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onClose={handleClose}>
-      <div className="w-[320px] bg-surface-1 border border-white/[0.08] shadow-2xl p-4">
+      <div className="w-[320px] bg-surface-1 border border-overlay/[0.08] shadow-2xl p-4">
         <p className="text-sm text-text-primary mb-4">{title}</p>
         <div className="flex justify-end gap-2">
           <button
@@ -133,7 +133,7 @@ export function PromptDialog({
 
   return (
     <Dialog open={open} onClose={handleClose}>
-      <div className="w-[320px] bg-surface-1 border border-white/[0.08] shadow-2xl p-4">
+      <div className="w-[320px] bg-surface-1 border border-overlay/[0.08] shadow-2xl p-4">
         <p className="text-sm text-text-primary mb-3">{title}</p>
         <input
           ref={inputRef}
@@ -143,7 +143,7 @@ export function PromptDialog({
             if (e.key === "Enter") handleSubmit();
           }}
           placeholder={placeholder}
-          className="w-full bg-surface-0 px-2.5 py-1.5 text-sm text-text-primary border border-white/[0.08] outline-none focus:border-accent/50"
+          className="w-full bg-surface-0 px-2.5 py-1.5 text-sm text-text-primary border border-overlay/[0.08] outline-none focus:border-accent/50"
           autoFocus
         />
         <div className="flex justify-end gap-2 mt-3">

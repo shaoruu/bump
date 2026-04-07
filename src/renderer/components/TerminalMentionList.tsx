@@ -44,21 +44,21 @@ export const TerminalMentionList = forwardRef<TerminalMentionListHandle, Termina
 
     if (items.length === 0) {
       return (
-        <div className="border border-white/[0.08] bg-surface-1 p-2 shadow-xl">
+        <div className="border border-overlay/[0.08] bg-surface-1 p-2 shadow-xl">
           <span className="text-xs text-text-tertiary">no terminals</span>
         </div>
       );
     }
 
     return (
-      <div className="max-h-40 overflow-y-auto border border-white/[0.08] bg-surface-1 py-0.5 shadow-xl">
+      <div className="max-h-40 overflow-y-auto border border-overlay/[0.08] bg-surface-1 py-0.5 shadow-xl">
         {items.map((item, index) => (
           <button
             key={item.id}
             ref={index === selectedIndex ? selectedRef : null}
             onClick={() => selectItem(index)}
             className={`flex w-full items-center gap-2 px-2 py-1 text-left text-xs transition-colors ${
-              index === selectedIndex ? "bg-white/[0.06] text-text-primary" : "text-text-secondary hover:bg-white/[0.03]"
+              index === selectedIndex ? "bg-overlay/[0.06] text-text-primary" : "text-text-secondary hover:bg-overlay/[0.03]"
             }`}
           >
             <span className="text-text-tertiary text-2xs">{item.id}</span>

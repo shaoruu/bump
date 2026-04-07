@@ -188,7 +188,7 @@ export function InputBar() {
   if (mode !== "agent") return null;
 
   return (
-    <div className="border-t border-white/[0.06] bg-surface-1 px-3 py-2 flex items-end gap-2">
+    <div className="border-t border-overlay/[0.06] bg-surface-1 px-3 py-2 flex items-end gap-2">
       <div className="flex-1 tiptap-input">
         <EditorContent editor={editor} />
       </div>

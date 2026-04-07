@@ -15,7 +15,7 @@ export function Tooltip({ label, children, side = "bottom" }: TooltipProps) {
           side === "bottom" ? "top-full mt-1" : "bottom-full mb-1"
         }`}
       >
-        <div className="px-1.5 py-0.5 bg-surface-2 border border-white/[0.08] text-text-secondary text-2xs whitespace-nowrap">
+        <div className="px-1.5 py-0.5 bg-surface-2 border border-overlay/[0.08] text-text-secondary text-2xs whitespace-nowrap">
           {label}
         </div>
       </div>

@@ -48,7 +48,7 @@ export function App() {
         return;
       }
 
-      const match = shortcut.match(/^Cmd\+(\d)$/);
+      const match = shortcut.match(/^Cmd\+([1-9])$/);
       if (match) {
         const { workspaces, switchWorkspace } = useAppStore.getState();
         if (workspaces.length === 0) return;

@@ -37,8 +37,8 @@ export class ErrorBoundary extends Component<Props, State> {
     if (error) {
       return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-[520px] max-h-[80vh] flex flex-col bg-surface-1 border border-white/[0.08] shadow-2xl">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+          <div className="w-[520px] max-h-[80vh] flex flex-col bg-surface-1 border border-overlay/[0.08] shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-overlay/[0.06]">
               <span className="text-sm font-medium text-text-primary">
                 something went wrong
               </span>
@@ -50,7 +50,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </button>
             </div>
 
-            <div className="px-4 py-3 border-b border-white/[0.06]">
+            <div className="px-4 py-3 border-b border-overlay/[0.06]">
               <p className="text-sm text-red-400 break-words">{error.message}</p>
             </div>
 
@@ -62,7 +62,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </div>
             )}
 
-            <div className="flex justify-end gap-2 px-4 py-3 border-t border-white/[0.06]">
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-overlay/[0.06]">
               <button
                 onClick={this.handleCopy}
                 className="text-xs text-text-secondary px-3 py-1.5 hover:bg-surface-2 transition-colors"

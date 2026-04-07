@@ -134,7 +134,7 @@ export function CommandPalette({ initialMode = "actions", onClose }: CommandPale
         if (e.target === e.currentTarget) handleClose();
       }}
     >
-      <div className="w-[440px] border border-white/[0.08] bg-surface-1 shadow-2xl overflow-hidden">
+      <div className="w-[440px] border border-overlay/[0.08] bg-surface-1 shadow-2xl overflow-hidden">
         <Command
           shouldFilter={true}
           value={highlightedValue}
@@ -158,7 +158,7 @@ export function CommandPalette({ initialMode = "actions", onClose }: CommandPale
             placeholder={
               mode === "themes" ? "search themes..." : "type a command..."
             }
-            className="w-full bg-transparent px-3 py-2.5 text-sm text-text-primary placeholder:text-text-tertiary border-b border-white/[0.06] outline-none"
+            className="w-full bg-transparent px-3 py-2.5 text-sm text-text-primary placeholder:text-text-tertiary border-b border-overlay/[0.06] outline-none"
           />
           <Command.List className="max-h-[300px] overflow-y-auto p-1">
             <Command.Empty className="px-3 py-6 text-center text-xs text-text-tertiary">
@@ -195,7 +195,7 @@ function ActionItem({
       value={action.label}
       keywords={action.keywords}
       onSelect={() => onSelect(action)}
-      className="flex items-center justify-between px-2 py-1.5 text-sm text-text-primary cursor-pointer data-[selected=true]:bg-white/[0.06]"
+      className="flex items-center justify-between px-2 py-1.5 text-sm text-text-primary cursor-pointer data-[selected=true]:bg-overlay/[0.06]"
     >
       <span className="flex items-center gap-2">
         {action.icon && (
@@ -297,10 +297,10 @@ function ThemeList({
           key={theme.name}
           value={theme.name}
           onSelect={() => onSelect(theme)}
-          className="flex items-center gap-2 px-2 py-1.5 text-sm text-text-primary cursor-pointer data-[selected=true]:bg-white/[0.06]"
+          className="flex items-center gap-2 px-2 py-1.5 text-sm text-text-primary cursor-pointer data-[selected=true]:bg-overlay/[0.06]"
         >
           <span
-            className="w-3 h-3 border border-white/10 shrink-0"
+            className="w-3 h-3 border border-overlay/10 shrink-0"
             style={{ background: theme.background }}
           />
           <span>{theme.name}</span>
@@ -337,15 +337,32 @@ function buildTerminalTheme(theme: GhosttyTheme): Record<string, string> {
   };
 }
 
+function isLightBackground(hex: string): boolean {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5;
+}
+
 function buildCssVars(theme: GhosttyTheme): Record<string, string> {
+  const isLight = isLightBackground(theme.background);
+  const overlay = isLight ? "0 0 0" : "255 255 255";
+
   return {
     "--surface-0": hexToRgb(theme.background),
-    "--surface-1": hexToRgb(lighten(theme.background, 0.05)),
-    "--surface-2": hexToRgb(lighten(theme.background, 0.1)),
+    "--surface-1": hexToRgb(lighten(theme.background, isLight ? -0.05 : 0.05)),
+    "--surface-2": hexToRgb(lighten(theme.background, isLight ? -0.1 : 0.1)),
     "--text-primary": hexToRgb(theme.foreground),
     "--text-secondary": hexToRgb(lighten(theme.foreground, -0.3)),
     "--text-tertiary": hexToRgb(lighten(theme.foreground, -0.5)),
+    "--chrome-text-primary": hexToRgb(theme.foreground),
+    "--chrome-text-secondary": hexToRgb(lighten(theme.foreground, -0.3)),
     "--accent": hexToRgb(mix(theme.palette[12], theme.foreground, 0.7)),
+    "--overlay": overlay,
+    "--border": overlay,
+    "--scrollbar-thumb": isLight ? "rgba(0, 0, 0, 0.08)" : "rgba(255, 255, 255, 0.06)",
+    "--scrollbar-thumb-hover": isLight ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.12)",
   };
 }
 

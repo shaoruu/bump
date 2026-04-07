@@ -33,14 +33,14 @@ export function ChatMenu() {
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-0.5 w-44 bg-surface-1 border border-white/[0.08] shadow-xl z-50 overflow-hidden">
+        <div className="absolute top-full left-0 mt-0.5 w-44 bg-surface-1 border border-overlay/[0.08] shadow-xl z-50 overflow-hidden">
           <div className="max-h-[200px] overflow-y-auto">
             {chats.map((chat) => (
               <button
                 key={chat.id}
                 onClick={() => { switchChat(chat.id); setOpen(false); }}
                 className={`w-full text-left px-2 py-1 flex items-center justify-between group text-2xs transition-colors ${
-                  chat.id === activeChatId ? "bg-white/[0.06] text-text-primary" : "text-text-secondary hover:bg-white/[0.03]"
+                  chat.id === activeChatId ? "bg-overlay/[0.06] text-text-primary" : "text-text-secondary hover:bg-overlay/[0.03]"
                 }`}
               >
                 <span className="truncate">{chat.name}</span>
@@ -57,7 +57,7 @@ export function ChatMenu() {
           </div>
           <button
             onClick={() => { createChat(); setOpen(false); }}
-            className="w-full text-left px-2 py-1 text-2xs text-text-tertiary hover:text-text-secondary hover:bg-white/[0.03] border-t border-white/[0.06] transition-colors"
+            className="w-full text-left px-2 py-1 text-2xs text-text-tertiary hover:text-text-secondary hover:bg-overlay/[0.03] border-t border-overlay/[0.06] transition-colors"
           >
             + new
           </button>

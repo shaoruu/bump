@@ -385,7 +385,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
 
   return (
     <div
-      className={`h-full w-full relative flex flex-col transition-[filter,opacity] ${isDragging ? "opacity-50" : !isActive ? "brightness-[0.7]" : ""}`}
+      className={`h-full w-full relative flex flex-col transition-opacity ${isDragging ? "opacity-50" : ""}`}
       onMouseDown={handleFocus}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -396,7 +396,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
         className={`h-6 shrink-0 flex items-center px-2 text-2xs select-none border-b cursor-grab active:cursor-grabbing group/header ${
           isActive
             ? "bg-surface-2 text-[rgb(var(--chrome-text-primary))] border-border"
-            : "bg-surface-1 text-[rgb(var(--chrome-text-secondary))] border-white/[0.06]"
+            : "bg-surface-1 text-[rgb(var(--chrome-text-secondary))] border-overlay/[0.06]"
         }`}
         draggable
         onDragStart={handleDragStart}
@@ -450,7 +450,7 @@ function PaneSlot({ paneId }: { paneId: string }) {
       <div ref={slotRef} className="flex-1 min-h-0" />
       {!isTerminalVisible && (
         <div className="absolute inset-x-0 top-6 bottom-0 z-20 flex items-center justify-center bg-surface-0 px-6">
-          <div className="flex items-center gap-2 border border-white/[0.08] bg-surface-1 px-4 py-3 text-xs text-text-secondary shadow-lg">
+          <div className="flex items-center gap-2 border border-overlay/[0.08] bg-surface-1 px-4 py-3 text-xs text-text-secondary shadow-lg">
             <span className="text-accent">$</span>
             <span>{isReady ? "starting shell..." : "starting terminal..."}</span>
             <span className="h-3.5 w-1.5 bg-accent/50 animate-pulse" />
@@ -481,6 +481,9 @@ function PaneSlot({ paneId }: { paneId: string }) {
           y={headerContextMenu.y}
           onClose={closeHeaderContextMenu}
         />
+      )}
+      {!isActive && !isDragging && (
+        <div className="absolute inset-0 pointer-events-none z-[1] bg-surface-0/40" />
       )}
     </div>
   );
@@ -746,7 +749,7 @@ function PaneMenu({
 }
 
 function MenuDivider() {
-  return <div className="h-px bg-white/[0.06] mx-2 my-1" />;
+  return <div className="h-px bg-overlay/[0.06] mx-2 my-1" />;
 }
 
 function MenuButton({
@@ -767,7 +770,7 @@ function MenuButton({
       className={`w-full flex items-center justify-between px-3 py-1 text-2xs transition-colors ${
         disabled
           ? "text-text-tertiary/50 cursor-default"
-          : "text-text-secondary hover:bg-white/[0.06] hover:text-text-primary"
+          : "text-text-secondary hover:bg-overlay/[0.06] hover:text-text-primary"
       }`}
     >
       <span>{label}</span>

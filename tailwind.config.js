@@ -48,6 +48,9 @@ export default {
         accent: {
           DEFAULT: "rgb(var(--accent) / <alpha-value>)",
         },
+        overlay: {
+          DEFAULT: "rgb(var(--overlay) / <alpha-value>)",
+        },
         border: {
           DEFAULT: "rgb(var(--border) / 0.1)",
         },

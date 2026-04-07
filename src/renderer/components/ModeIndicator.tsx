@@ -25,7 +25,7 @@ export function ModeIndicator() {
         )}
         <button
           onClick={toggleMode}
-          className="flex items-center gap-1.5 px-2 py-0.5 hover:bg-white/[0.06] active:bg-white/[0.1] transition-colors"
+          className="flex items-center gap-1.5 px-2 py-0.5 hover:bg-overlay/[0.06] active:bg-overlay/[0.1] transition-colors"
         >
           <span
             className={`inline-block w-1.5 h-1.5 transition-colors ${
