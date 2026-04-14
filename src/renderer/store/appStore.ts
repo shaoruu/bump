@@ -127,6 +127,7 @@ interface AppState {
   closePane: (paneId: string) => void;
   closeOtherPanes: (keepPaneId: string) => string[];
   updateSplitSizes: (splitId: string, sizes: [number, number]) => void;
+  layoutVersion: number;
   distributeEvenly: (splitId: string) => void;
   swapPanes: (paneIdA: string, paneIdB: string) => void;
   movePane: (
@@ -454,6 +455,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   panes: new Map([[initialPaneId, { id: initialPaneId, terminalId: null }]]),
   paneTree: { type: "leaf", paneId: initialPaneId },
   activePaneId: initialPaneId,
+  layoutVersion: 0,
 
   isLayoutLoaded: false,
   setLayoutLoaded: () => set({ isLayoutLoaded: true }),
@@ -747,6 +749,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       return {
         paneTree: replaceSplitWithNode(state.paneTree, topmost.id, distribute(topmost)),
+        layoutVersion: state.layoutVersion + 1,
       };
     }),
 

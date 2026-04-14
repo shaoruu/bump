@@ -1,4 +1,4 @@
-import { Panel, Group, Separator } from "react-resizable-panels";
+import { Panel, Group, Separator, useGroupRef } from "react-resizable-panels";
 import type { Layout } from "react-resizable-panels";
 import { useCallback, useRef, useEffect, useState } from "react";
 import { useAppStore } from "../store/appStore.js";
@@ -22,10 +22,27 @@ export function SplitView({
 }: SplitViewProps) {
   const updateSplitSizes = useAppStore((s) => s.updateSplitSizes);
   const distributeEvenly = useAppStore((s) => s.distributeEvenly);
+  const layoutVersion = useAppStore((s) => s.layoutVersion);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const groupRef = useGroupRef();
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSizesRef = useRef<[number, number] | null>(null);
+  const sizesRef = useRef(sizes);
+  sizesRef.current = sizes;
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    const s = sizesRef.current;
+    groupRef.current?.setLayout({
+      [`${splitId}-left`]: s[0],
+      [`${splitId}-right`]: s[1],
+    });
+  }, [layoutVersion, splitId, groupRef]);
 
   const handleLayout = useCallback(
     (layout: Layout) => {
@@ -70,6 +87,7 @@ export function SplitView({
   return (
     <>
       <Group
+        groupRef={groupRef}
         orientation={isSideBySide ? "horizontal" : "vertical"}
         onLayoutChange={handleLayout}
         className="h-full"
@@ -91,7 +109,7 @@ export function SplitView({
             active:bg-accent/40
             transition-colors
           `}
-          onDoubleClick={() => updateSplitSizes(splitId, [50, 50])}
+          onDoubleClick={() => distributeEvenly(splitId)}
           onContextMenu={handleContextMenu}
         >
           <div
