@@ -411,6 +411,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       panes: new Map(target.panes),
       paneTree: target.paneTree,
       activePaneId: target.activePaneId,
+      layoutVersion: state.layoutVersion + 1,
     });
   },
 

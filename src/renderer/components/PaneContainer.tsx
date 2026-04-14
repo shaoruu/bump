@@ -135,6 +135,7 @@ const PaneNodeRenderer = memo(function PaneNodeRenderer({
 
   return (
     <SplitView
+      key={node.id}
       splitId={node.id}
       direction={node.direction}
       sizes={node.sizes}
