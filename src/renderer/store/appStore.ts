@@ -127,6 +127,7 @@ interface AppState {
   closePane: (paneId: string) => void;
   closeOtherPanes: (keepPaneId: string) => string[];
   updateSplitSizes: (splitId: string, sizes: [number, number]) => void;
+  distributeEvenly: (splitId: string) => void;
   swapPanes: (paneIdA: string, paneIdB: string) => void;
   movePane: (
     sourcePaneId: string,
@@ -684,6 +685,69 @@ export const useAppStore = create<AppState>((set, get) => ({
         };
       }
       return { paneTree: updateNode(state.paneTree) };
+    }),
+
+  distributeEvenly: (splitId) =>
+    set((state) => {
+      function findSplit(node: PaneNode): SplitNode | null {
+        if (node.type === "leaf") return null;
+        if (node.id === splitId) return node;
+        return findSplit(node.children[0]) || findSplit(node.children[1]);
+      }
+
+      const split = findSplit(state.paneTree);
+      if (!split) return {};
+
+      const dir = split.direction;
+
+      function findPath(node: PaneNode): SplitNode[] | null {
+        if (node.type === "leaf") return null;
+        if (node.id === splitId) return [node];
+        for (const child of node.children) {
+          const path = findPath(child);
+          if (path) return [node as SplitNode, ...path];
+        }
+        return null;
+      }
+
+      const path = findPath(state.paneTree);
+      if (!path) return {};
+
+      let topmostIdx = path.length - 1;
+      for (let i = path.length - 2; i >= 0; i--) {
+        if (path[i].direction === dir) {
+          topmostIdx = i;
+        } else {
+          break;
+        }
+      }
+
+      const topmost = path[topmostIdx];
+
+      function countEffective(node: PaneNode): number {
+        if (node.type === "leaf") return 1;
+        if (node.direction === dir) {
+          return countEffective(node.children[0]) + countEffective(node.children[1]);
+        }
+        return 1;
+      }
+
+      function distribute(node: PaneNode): PaneNode {
+        if (node.type === "leaf") return node;
+        if (node.direction !== dir) return node;
+        const leftCount = countEffective(node.children[0]);
+        const rightCount = countEffective(node.children[1]);
+        const total = leftCount + rightCount;
+        return {
+          ...node,
+          sizes: [(leftCount / total) * 100, (rightCount / total) * 100],
+          children: [distribute(node.children[0]), distribute(node.children[1])],
+        };
+      }
+
+      return {
+        paneTree: replaceSplitWithNode(state.paneTree, topmost.id, distribute(topmost)),
+      };
     }),
 
   swapPanes: (paneIdA, paneIdB) =>
