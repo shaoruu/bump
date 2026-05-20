@@ -1403,21 +1403,28 @@ export class Terminal implements ITerminalCore {
    * Handle wheel events for scrolling (Phase 2)
    */
   private handleWheel = (e: WheelEvent): void => {
-    // Always prevent default browser scrolling
-    e.preventDefault();
-    e.stopPropagation();
-
     // Allow custom handler to override
     if (this.customWheelEventHandler && this.customWheelEventHandler(e)) {
+      e.preventDefault();
+      e.stopPropagation();
       return;
     }
 
-    // Check if in alternate screen mode (vim, less, htop, etc.)
     const isAltScreen = this.wasmTerm?.isAlternateScreen() ?? false;
 
+    // Apps in the alternate screen with mouse tracking enabled (e.g. Ink TUIs)
+    // expect SGR wheel sequences. InputHandler emits those on bubble; do not
+    // translate wheel into arrow keys or block propagation here.
+    if (isAltScreen && this.wasmTerm?.hasMouseTracking()) {
+      return;
+    }
+
+    // Always prevent default browser scrolling for terminal-owned wheel handling
+    e.preventDefault();
+    e.stopPropagation();
+
     if (isAltScreen) {
-      // Alternate screen: send arrow keys to the application
-      // Applications like vim handle scrolling internally
+      // Alternate screen without mouse tracking: send arrow keys (vim, less, etc.)
       // Standard: ~3 arrow presses per wheel "click"
       const direction = e.deltaY > 0 ? 'down' : 'up';
       const count = Math.min(Math.abs(Math.round(e.deltaY / 33)), 5); // Cap at 5
