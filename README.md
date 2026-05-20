@@ -1,6 +1,6 @@
 # Bump
 
-A fast, minimal terminal built around Cursor CLI.
+A fast, minimal terminal built for ian.
 
 ![Bump Terminal](screenshot.png)
 
