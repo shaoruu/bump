@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { PaneContainer } from "./components/PaneContainer.js";
 import { TabBar } from "./components/TabBar.js";
-import { LoginView } from "./components/LoginView.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PromptDialog, ConfirmDialog } from "./components/Dialog.js";
 import { useAppStore } from "./store/appStore.js";
@@ -11,10 +10,6 @@ import { loadPersistedLayout, startLayoutPersistence } from "./lib/layout-persis
 
 export function App() {
   const isLayoutLoaded = useAppStore((s) => s.isLayoutLoaded);
-  const isAuthChecked = useAppStore((s) => s.isAuthChecked);
-  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
-  const setAuth = useAppStore((s) => s.setAuth);
-  const setAuthChecked = useAppStore((s) => s.setAuthChecked);
   const promptDialog = useAppStore((s) => s.promptDialog);
   const closePrompt = useAppStore((s) => s.closePrompt);
   const confirmDialog = useAppStore((s) => s.confirmDialog);
@@ -78,13 +73,6 @@ export function App() {
   }, [isLayoutLoaded]);
 
   useEffect(() => {
-    window.bump.checkAuth().then((status) => {
-      setAuth(status.authenticated, status.email);
-      setAuthChecked();
-    });
-  }, [setAuth, setAuthChecked]);
-
-  useEffect(() => {
     return window.bump.onMenuCopy(() => {
       const { activePaneId } = useAppStore.getState();
       terminalRegistry.copySelection(activePaneId);
@@ -109,21 +97,12 @@ export function App() {
     });
   }, []);
 
-  if (!isAuthChecked || !isLayoutLoaded) {
+  if (!isLayoutLoaded) {
     return (
       <div className="h-full flex items-center justify-center bg-surface-0">
         <span className="text-xs text-text-tertiary">loading...</span>
       </div>
     );
-  }
-
-  if (!isAuthenticated) {
-    const handleRefresh = async () => {
-      const status = await window.bump.checkAuth();
-      setAuth(status.authenticated, status.email);
-    };
-
-    return <LoginView onRefresh={handleRefresh} />;
   }
 
   return (

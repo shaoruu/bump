@@ -98,12 +98,6 @@ interface AppState {
   setLayoutLoaded: () => void;
   restoreLayout: (layout: PersistedLayout) => void;
 
-  isAuthChecked: boolean;
-  isAuthenticated: boolean;
-  userEmail: string | null;
-  setAuth: (authenticated: boolean, email?: string) => void;
-  setAuthChecked: () => void;
-
   chats: Chat[];
   activeChatId: string;
   createChat: () => string;
@@ -491,13 +485,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       activePaneId: activeWs.activePaneId,
     });
   },
-
-  isAuthChecked: false,
-  isAuthenticated: false,
-  userEmail: null,
-  setAuth: (authenticated, email) =>
-    set({ isAuthenticated: authenticated, userEmail: email ?? null }),
-  setAuthChecked: () => set({ isAuthChecked: true }),
 
   chats: [{ id: initialChatId, name: "Chat 1", messages: [], toolCalls: [], createdAt: Date.now(), updatedAt: Date.now() }],
   activeChatId: initialChatId,

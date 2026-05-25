@@ -81,8 +81,6 @@ const bump: BumpAPI = {
     ipcRenderer.send("agent:permission-response", response);
   },
 
-  checkAuth: () => ipcRenderer.invoke("auth:check"),
-
   listThemes: () => ipcRenderer.invoke("themes:list"),
 
   getSetting: (key: string) => ipcRenderer.invoke("settings:get", key),

@@ -126,8 +126,6 @@ export interface BumpAPI {
   onPermissionRequest: (cb: (request: PermissionRequest) => void) => () => void;
   respondToPermission: (response: PermissionResponse) => void;
 
-  checkAuth: () => Promise<{ authenticated: boolean; email?: string }>;
-
   listThemes: () => Promise<GhosttyTheme[]>;
 
   getSetting: (key: string) => Promise<string | null>;

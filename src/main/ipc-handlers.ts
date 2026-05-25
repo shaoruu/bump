@@ -1,5 +1,4 @@
 import { ipcMain, clipboard, dialog, type BrowserWindow } from "electron";
-import { execFileSync, spawnSync } from "node:child_process";
 import {
   createTerminal,
   writeTerminal,
@@ -15,31 +14,6 @@ import {
 import { AgentSession } from "./agent-session.js";
 import { loadGhosttyThemes } from "./theme-loader.js";
 import { getSetting, setSetting } from "./settings.js";
-
-let cachedAgentCliPath: string | null = null;
-
-function getAgentCliPath(): string {
-  if (cachedAgentCliPath) return cachedAgentCliPath;
-  if (process.env.AGENT_CLI_PATH) {
-    cachedAgentCliPath = process.env.AGENT_CLI_PATH;
-    return cachedAgentCliPath;
-  }
-  const shell = process.platform === "darwin" ? "/bin/zsh" : "/bin/bash";
-  try {
-    const result = execFileSync(shell, ["-l", "-c", "which cursor-agent"], {
-      encoding: "utf-8",
-      timeout: 10000,
-    }).trim();
-    if (result && !result.includes("not found")) {
-      cachedAgentCliPath = result;
-      return cachedAgentCliPath;
-    }
-  } catch {
-    // fall through
-  }
-  cachedAgentCliPath = "cursor-agent";
-  return cachedAgentCliPath;
-}
 
 let agentSession: AgentSession | null = null;
 
@@ -131,20 +105,6 @@ export function setupIpcHandlers(
 
   ipcMain.on("agent:permission-response", (_event, response) => {
     // forwarded by the once handler in agent-session
-  });
-
-  ipcMain.handle("auth:check", async () => {
-    const agentCliPath = getAgentCliPath();
-    const result = spawnSync(agentCliPath, ["whoami"], {
-      stdio: "pipe",
-      timeout: 5000,
-      encoding: "utf-8",
-    });
-    if (result.status === 0 && result.stdout) {
-      const match = result.stdout.match(/Logged in as\s+([^\s]+@[^\s]+)/i);
-      if (match) return { authenticated: true, email: match[1] };
-    }
-    return { authenticated: false };
   });
 
   ipcMain.handle("dialog:select-directory", async () => {
