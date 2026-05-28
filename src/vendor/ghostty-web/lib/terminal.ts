@@ -1416,18 +1416,28 @@ export class Terminal implements ITerminalCore {
     const isAltScreen = this.wasmTerm?.isAlternateScreen() ?? false;
 
     if (isAltScreen) {
+      // DEC mode 1007 (alternate scroll mode) gates wheel-to-arrow translation.
+      // Defaults on, so legacy TUIs (vim, less, htop) keep working. Apps that
+      // handle the wheel themselves can opt out with DECRST 1007 (\x1B[?1007l)
+      // to avoid spurious arrow-key input.
+      const isAlternateScrollEnabled = this.wasmTerm?.getMode(1007, false) ?? true;
+      if (!isAlternateScrollEnabled) {
+        return;
+      }
+
       // Alternate screen: send arrow keys to the application
       // Applications like vim handle scrolling internally
       // Standard: ~3 arrow presses per wheel "click"
+      // Honor DECCKM (mode 1) for application cursor mode: send SS3 instead of CSI
+      const isAppCursorMode = this.wasmTerm?.getMode(1, false) ?? false;
+      const upSeq = isAppCursorMode ? '\x1BOA' : '\x1B[A';
+      const downSeq = isAppCursorMode ? '\x1BOB' : '\x1B[B';
+
       const direction = e.deltaY > 0 ? 'down' : 'up';
       const count = Math.min(Math.abs(Math.round(e.deltaY / 33)), 5); // Cap at 5
 
       for (let i = 0; i < count; i++) {
-        if (direction === 'up') {
-          this.dataEmitter.fire('\x1B[A');
-        } else {
-          this.dataEmitter.fire('\x1B[B');
-        }
+        this.dataEmitter.fire(direction === 'up' ? upSeq : downSeq);
       }
       this._renderNeeded = true;
     } else {
