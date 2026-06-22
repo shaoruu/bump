@@ -27,6 +27,11 @@ const terminalTheme = {
   brightWhite: "#ffffff",
 };
 
+// ghostty-web's `scrollback` is a byte budget for the WASM history buffer
+// (~13 bytes per cell), not a line count. 50MB holds tens of thousands of
+// lines of history (~50k at 80 cols, ~20k at 200 cols).
+const SCROLLBACK_BYTES = 50 * 1024 * 1024;
+
 let ghosttyReady: Promise<void> | null = null;
 
 function ensureGhosttyInit(): Promise<void> {
@@ -123,6 +128,7 @@ class TerminalRegistry {
       fontFamily:
         '"Berkeley Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
       fontSize: this.currentFontSize,
+      scrollback: SCROLLBACK_BYTES,
       theme,
     });
 
