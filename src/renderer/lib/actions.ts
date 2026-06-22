@@ -294,7 +294,6 @@ export function registerCoreActions(
   registerAction({
     id: "terminal.clear",
     label: "Clear Terminal",
-    shortcut: "Cmd+K",
     keywords: ["clean", "scrollback", "reset"],
     icon: "trash",
     category: "terminal",

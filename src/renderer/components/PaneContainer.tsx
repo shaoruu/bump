@@ -642,7 +642,7 @@ function TerminalContextMenu({
       <MenuButton label="Paste" shortcut="⌘V" onClick={actions.paste} />
       <MenuButton label="Select All" shortcut="⌘A" onClick={actions.selectAll} />
       <MenuDivider />
-      <MenuButton label="Clear" shortcut="⌘K" onClick={actions.clear} />
+      <MenuButton label="Clear" onClick={actions.clear} />
       <MenuButton label="Copy Output" onClick={actions.copyOutput} />
       <MenuDivider />
       <MenuButton label="Split Right" shortcut="⌘D" onClick={actions.splitRight} />
@@ -711,7 +711,7 @@ function PaneHeaderContextMenu({
       style={{ left: x, top: y }}
       className="fixed z-50 bg-surface-1 border border-border py-1 min-w-[160px] shadow-lg"
     >
-      <MenuButton label="Clear" shortcut="⌘K" onClick={actions.clear} />
+      <MenuButton label="Clear" onClick={actions.clear} />
       <MenuButton label="Copy Output" onClick={actions.copyOutput} />
       <MenuDivider />
       <MenuButton label="Split Right" shortcut="⌘D" onClick={actions.splitRight} />

@@ -38,7 +38,7 @@ export function App() {
 
   useEffect(() => {
     return window.bump.onShortcut((shortcut) => {
-      if (shortcut === "Cmd+P") {
+      if (shortcut === "Cmd+P" || shortcut === "Cmd+K") {
         setPaletteOpen((prev) => !prev);
         return;
       }
