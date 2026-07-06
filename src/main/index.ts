@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import { join } from "node:path";
 import { setupIpcHandlers, cleanupAgent } from "./ipc-handlers.js";
 import { closeAllTerminals } from "./pty-manager.js";
+import { startControlServer, stopControlServer } from "./control-server.js";
 
 app.commandLine.appendSwitch("enable-gpu-rasterization");
 app.commandLine.appendSwitch("enable-zero-copy");
@@ -214,11 +215,17 @@ app.whenReady().then(() => {
 
   createWindow();
 
+  startControlServer(() => mainWindow);
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
   });
+});
+
+app.on("will-quit", () => {
+  stopControlServer();
 });
 
 app.on("window-all-closed", async () => {

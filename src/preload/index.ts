@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type {
   BumpAPI,
+  ControlRequestMessage,
+  ControlResponseMessage,
+  ControlStateReport,
   PermissionRequest,
   PermissionResponse,
   SessionUpdatePayload,
@@ -147,6 +150,21 @@ const bump: BumpAPI = {
   },
 
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
+
+  onControlRequest: (cb: (request: ControlRequestMessage) => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      request: ControlRequestMessage
+    ) => cb(request);
+    ipcRenderer.on("control:request", handler);
+    return () => ipcRenderer.removeListener("control:request", handler);
+  },
+
+  sendControlResponse: (response: ControlResponseMessage) =>
+    ipcRenderer.send("control:response", response),
+
+  reportControlState: (state: ControlStateReport) =>
+    ipcRenderer.send("control:state", state),
 };
 
 contextBridge.exposeInMainWorld("bump", bump);

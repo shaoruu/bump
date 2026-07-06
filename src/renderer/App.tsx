@@ -7,6 +7,7 @@ import { useAppStore } from "./store/appStore.js";
 import { registerCoreActions, getActions, initUiScale } from "./lib/actions.js";
 import { terminalRegistry } from "./components/TerminalRegistry.js";
 import { loadPersistedLayout, startLayoutPersistence } from "./lib/layout-persistence.js";
+import { initControlBridge } from "./lib/control-bridge.js";
 
 export function App() {
   const isLayoutLoaded = useAppStore((s) => s.isLayoutLoaded);
@@ -65,6 +66,10 @@ export function App() {
 
   useEffect(() => {
     loadPersistedLayout();
+  }, []);
+
+  useEffect(() => {
+    return initControlBridge();
   }, []);
 
   useEffect(() => {

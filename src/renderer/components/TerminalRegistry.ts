@@ -55,6 +55,9 @@ interface TerminalEntry {
   isReady: boolean;
   isVisible: boolean;
   callbacks: TerminalCallbacks;
+  // Bumped on every (re)init so a late PTY creation for a pane that was closed
+  // or restarted meanwhile can be detected and cleaned up instead of leaking.
+  generation: number;
 }
 
 import { getThemeCache } from "../lib/theme-cache.js";
@@ -87,6 +90,7 @@ class TerminalRegistry {
       isReady: false,
       isVisible: false,
       callbacks,
+      generation: 0,
     };
 
     this.entries.set(paneId, entry);
@@ -115,11 +119,11 @@ class TerminalRegistry {
   }
 
   private async initTerminal(paneId: string, entry: TerminalEntry, cwd?: string) {
+    const generation = ++entry.generation;
+
     await ensureGhosttyInit();
 
-    await new Promise<void>(r => requestAnimationFrame(() => setTimeout(r, 0)));
-
-    if (!this.entries.has(paneId)) return;
+    if (!this.entries.has(paneId) || entry.generation !== generation) return;
 
     const theme = this.currentTheme ?? terminalTheme;
 
@@ -176,20 +180,6 @@ class TerminalRegistry {
       }, delayMs);
     };
 
-    requestAnimationFrame(() => {
-      fitAddon.fit();
-
-      window.bump.createTerminal(cwd).then(({ id }) => {
-        entry.terminalId = id;
-        entry.isReady = true;
-        const { cols, rows } = terminal;
-        window.bump.resizeTerminal(id, cols, rows);
-        entry.callbacks.onReady(id);
-        revealTerminal(1200);
-      });
-    });
-
-
     const inputDisposable = terminal.onData((data) => {
       if (entry.terminalId) {
         window.bump.writeTerminal(entry.terminalId, data);
@@ -232,28 +222,50 @@ class TerminalRegistry {
       }
     };
 
-    const waitForId = setInterval(() => {
-      if (entry.terminalId) {
-        clearInterval(waitForId);
-        realUnsubData = window.bump.onTerminalData(
-          entry.terminalId,
-          (data) => {
-            if (data.length > 0) {
-              revealTerminal(180);
-            }
-            writeBuffer += data;
-            if (!writeRaf) {
-              writeRaf = requestAnimationFrame(flushWrites);
-            }
-          }
-        );
-        realUnsubExit = window.bump.onTerminalExit(entry.terminalId, () => {
-          entry.callbacks.onExit(paneId);
-        });
-      }
-    }, 10);
+    const attachStreams = (id: string) => {
+      realUnsubData = window.bump.onTerminalData(id, (data) => {
+        if (data.length > 0) {
+          revealTerminal(180);
+        }
+        writeBuffer += data;
+        if (!writeRaf) {
+          writeRaf = requestAnimationFrame(flushWrites);
+        }
+      });
+      realUnsubExit = window.bump.onTerminalExit(id, () => {
+        entry.callbacks.onExit(paneId);
+      });
+    };
 
-    const waitTimeout = setTimeout(() => clearInterval(waitForId), 30_000);
+    try {
+      fitAddon.fit();
+    } catch {
+      // container may not be laid out yet (e.g. hidden window); the PTY starts
+      // at its default size and the ResizeObserver corrects it once visible
+    }
+
+    // Create the PTY on a microtask, NOT inside requestAnimationFrame. Electron
+    // pauses rAF while the window is backgrounded/occluded, which is exactly
+    // when an agent drives bump via the CLI from another app, so gating PTY
+    // creation on rAF made programmatic splits hang and time out.
+    window.bump.createTerminal(cwd).then(({ id }) => {
+      // The pane may have been closed or restarted while the PTY was starting.
+      // Adopt the id only if this init is still current, else close the PTY so
+      // it does not leak as an orphan with no pane.
+      if (!this.entries.has(paneId) || entry.generation !== generation) {
+        window.bump.closeTerminal(id);
+        return;
+      }
+      entry.terminalId = id;
+      entry.isReady = true;
+      attachStreams(id);
+      const { cols, rows } = terminal;
+      if (cols > 0 && rows > 0) {
+        window.bump.resizeTerminal(id, cols, rows);
+      }
+      entry.callbacks.onReady(id);
+      revealTerminal(1200);
+    });
 
     let resizeTimeout: number | null = null;
     const resizeObserver = new ResizeObserver(() => {
@@ -281,8 +293,6 @@ class TerminalRegistry {
       inputDisposable.dispose();
       realUnsubData?.();
       realUnsubExit?.();
-      clearInterval(waitForId);
-      clearTimeout(waitTimeout);
       resizeObserver.disconnect();
       if (resizeTimeout) cancelAnimationFrame(resizeTimeout);
       if (revealTimeoutId) clearTimeout(revealTimeoutId);

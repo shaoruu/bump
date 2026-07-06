@@ -9,6 +9,8 @@
     "build:main": "vite build --config vite.main.config.ts",
     "build": "tsc && vite build",
     "electron:build": "node scripts/build-preload.mjs && vite build && electron-builder",
+    "cli:build": "cd cli && go build -o bump .",
+    "setup:control": "node scripts/setup-bump-control.mjs",
     "preview": "vite preview",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\"",

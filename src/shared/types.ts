@@ -100,6 +100,68 @@ export interface GhosttyTheme {
   palette: string[];
 }
 
+export type ControlSplitDirection = "horizontal" | "vertical";
+
+export type ControlPaneNode =
+  | { type: "leaf"; paneId: string }
+  | {
+      type: "split";
+      id: string;
+      direction: ControlSplitDirection;
+      children: [ControlPaneNode, ControlPaneNode];
+      sizes: [number, number];
+    };
+
+export interface ControlPaneInfo {
+  paneId: string;
+  terminalId: string | null;
+}
+
+export interface ControlWorkspaceInfo {
+  id: string;
+  name: string;
+  isActive: boolean;
+  activePaneId: string;
+  paneTree: ControlPaneNode;
+  panes: ControlPaneInfo[];
+}
+
+// Params routed from the HTTP server into the renderer bridge. Optional by
+// design: each control method reads and validates only the fields it needs.
+export interface ControlBridgeParams {
+  id?: string;
+  workspaceId?: string;
+  paneId?: string;
+  name?: string;
+  cwd?: string;
+  command?: string;
+  direction?: ControlSplitDirection;
+}
+
+export interface ControlBridgeResult {
+  workspaces?: ControlWorkspaceInfo[];
+  workspaceId?: string;
+  paneId?: string;
+  terminalId?: string | null;
+  closed?: boolean;
+}
+
+export interface ControlRequestMessage {
+  reqId: string;
+  method: string;
+  params: ControlBridgeParams;
+}
+
+export interface ControlResponseMessage {
+  reqId: string;
+  result?: ControlBridgeResult;
+  error?: string;
+}
+
+export interface ControlStateReport {
+  workspaceCount: number;
+}
+
 export interface BumpAPI {
   createTerminal: (cwd?: string) => Promise<{ id: string; pid: number }>;
   getTerminalCwd: (id: string) => Promise<string | null>;
@@ -153,6 +215,10 @@ export interface BumpAPI {
   onShortcut: (cb: (shortcut: string) => void) => () => void;
 
   getPathForFile: (file: File) => string;
+
+  onControlRequest: (cb: (request: ControlRequestMessage) => void) => () => void;
+  sendControlResponse: (response: ControlResponseMessage) => void;
+  reportControlState: (state: ControlStateReport) => void;
 }
 
 declare global {
