@@ -26,18 +26,71 @@ type statusData struct {
 }
 
 type terminalData struct {
-	ID          string  `json:"id"`
-	Title       string  `json:"title"`
-	Pid         *int    `json:"pid"`
-	Cwd         *string `json:"cwd"`
-	GitBranch   *string `json:"gitBranch"`
-	LogPath     string  `json:"logPath"`
-	WorkspaceID *string `json:"workspaceId"`
-	PaneID      *string `json:"paneId"`
+	ID          string      `json:"id"`
+	Title       string      `json:"title"`
+	Pid         *int        `json:"pid"`
+	Cwd         *string     `json:"cwd"`
+	GitBranch   *string     `json:"gitBranch"`
+	LogPath     string      `json:"logPath"`
+	WorkspaceID *string     `json:"workspaceId"`
+	PaneID      *string     `json:"paneId"`
+	Job         *jobSummary `json:"job"`
 }
 
 type terminalsData struct {
 	Terminals []terminalData `json:"terminals"`
+}
+
+// jobSummary is the compact job view embedded in each terminal listing.
+type jobSummary struct {
+	Status         string  `json:"status"`
+	CurrentCommand *string `json:"currentCommand"`
+	LastExitCode   *int    `json:"lastExitCode"`
+}
+
+// jobState is the full per-terminal job returned by /terminals/:id/job.
+type jobState struct {
+	ID             string  `json:"id"`
+	Status         string  `json:"status"`
+	CurrentCommand *string `json:"currentCommand"`
+	LastCommand    *string `json:"lastCommand"`
+	LastExitCode   *int    `json:"lastExitCode"`
+	StartedAt      *int64  `json:"startedAt"`
+	EndedAt        *int64  `json:"endedAt"`
+	CommandCount   int     `json:"commandCount"`
+}
+
+type runningJob struct {
+	ID        string  `json:"id"`
+	Command   *string `json:"command"`
+	CommandID int     `json:"commandId"`
+	StartedAt *int64  `json:"startedAt"`
+	ElapsedMs *int64  `json:"elapsedMs"`
+}
+
+type jobsData struct {
+	Jobs []runningJob `json:"jobs"`
+}
+
+// runWaitData is returned by POST /terminals/:id/run with { wait: true }.
+type runWaitData struct {
+	ID         string `json:"id"`
+	Command    string `json:"command"`
+	ExitCode   *int   `json:"exitCode"`
+	DurationMs *int64 `json:"durationMs"`
+	CommandID  int    `json:"commandId"`
+}
+
+// commandEvent is one Server-Sent Event from /events.
+type commandEvent struct {
+	Type       string `json:"type"`
+	TerminalID string `json:"terminalId"`
+	CommandID  int    `json:"commandId"`
+	Command    string `json:"command"`
+	ExitCode   *int   `json:"exitCode"`
+	StartedAt  *int64 `json:"startedAt"`
+	EndedAt    *int64 `json:"endedAt"`
+	DurationMs *int64 `json:"durationMs"`
 }
 
 type paneInfo struct {

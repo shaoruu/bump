@@ -41,7 +41,7 @@ func loadClient(dev bool) (*client, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("bump is not running (no control file at %s)", path)
+			return nil, &exitError{code: exitNotRunning, msg: fmt.Sprintf("bump is not running (no control file at %s)", path)}
 		}
 		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
@@ -61,7 +61,21 @@ func loadClient(dev bool) (*client, error) {
 	}, nil
 }
 
-func (c *client) request(method, path string, body any) (json.RawMessage, error) {
+// apiError carries the HTTP status so callers (notably `run --wait`) can map
+// specific failures to distinct exit codes.
+type apiError struct {
+	status  int
+	message string
+}
+
+func (e *apiError) Error() string {
+	if e.message != "" {
+		return e.message
+	}
+	return fmt.Sprintf("request failed with status %d", e.status)
+}
+
+func (c *client) doRequest(hc *http.Client, method, path string, body any) (json.RawMessage, error) {
 	var reader io.Reader
 	if body != nil {
 		buf, err := json.Marshal(body)
@@ -80,9 +94,9 @@ func (c *client) request(method, path string, body any) (json.RawMessage, error)
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	resp, err := c.http.Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("could not reach bump at %s (is it still running?): %w", c.baseURL, err)
+		return nil, &exitError{code: exitNotRunning, msg: fmt.Sprintf("could not reach bump at %s (is it still running?): %v", c.baseURL, err)}
 	}
 	defer resp.Body.Close()
 
@@ -96,12 +110,42 @@ func (c *client) request(method, path string, body any) (json.RawMessage, error)
 		return nil, fmt.Errorf("unexpected response (%d): %s", resp.StatusCode, string(raw))
 	}
 	if !env.OK {
-		if env.Error != "" {
-			return nil, errors.New(env.Error)
-		}
-		return nil, fmt.Errorf("request failed with status %d", resp.StatusCode)
+		return nil, &apiError{status: resp.StatusCode, message: env.Error}
 	}
 	return env.Data, nil
+}
+
+func (c *client) request(method, path string, body any) (json.RawMessage, error) {
+	return c.doRequest(c.http, method, path, body)
+}
+
+// requestTimeout runs a single request with a bespoke timeout (0 = no timeout),
+// used for run-wait where the caller decides how long to block.
+func (c *client) requestTimeout(method, path string, body any, timeout time.Duration) (json.RawMessage, error) {
+	return c.doRequest(&http.Client{Timeout: timeout}, method, path, body)
+}
+
+// stream opens a long-lived GET (no client timeout) for Server-Sent Events.
+func (c *client) stream(path string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodGet, c.baseURL+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return nil, &exitError{code: exitNotRunning, msg: fmt.Sprintf("could not reach bump at %s (is it still running?): %v", c.baseURL, err)}
+	}
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		var env envelope
+		if json.Unmarshal(raw, &env) == nil && env.Error != "" {
+			return nil, &apiError{status: resp.StatusCode, message: env.Error}
+		}
+		return nil, fmt.Errorf("event stream failed with status %d", resp.StatusCode)
+	}
+	return resp, nil
 }
 
 func (c *client) get(path string) (json.RawMessage, error) {

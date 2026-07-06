@@ -1,9 +1,29 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
+
+// Distinct exit codes so scripts and agents can branch on the failure mode.
+const (
+	exitGeneric    = 1
+	exitNotRunning = 2
+	exitBusy       = 3
+	exitUnknownID  = 4
+	exitTimeout    = 124
+)
+
+// exitError lets a command choose the process exit code (and, when msg is
+// empty, exit silently -- used by `run --wait` to propagate a command's own
+// exit code without extra output).
+type exitError struct {
+	code int
+	msg  string
+}
+
+func (e *exitError) Error() string { return e.msg }
 
 const usage = `bump - control the bump terminal app from the command line
 
@@ -12,12 +32,17 @@ Usage:
 
 Commands:
   status                          show server, workspace and terminal counts
-  ls, terminals                   list terminals (id, title, cwd, branch, pid, pane)
+  ls, terminals                   list terminals (id, status, cwd, branch, pid, pane)
+  ps                              list commands currently running in terminals
+  watch [--terminal <id>]         stream command start/finish events (Ctrl-C to stop)
   workspaces, ws                  list workspaces and their panes
   run [flags] <command...>        run a command in a terminal
       --new                         run in a fresh terminal (new workspace)
       --workspace <id>              run in a fresh terminal in that workspace
       --pane <id>                   run in the terminal hosted by that pane
+      --wait                        block until the command finishes; exit with
+                                    its exit code (needs --pane or active pane)
+      --timeout <dur>               with --wait, give up after e.g. 30s or 5m
       (default: the active pane's terminal)
   write <terminalId> <text...>    write raw text to a terminal (no newline)
   read <terminalId> [--lines N]   print recent terminal output
@@ -41,8 +66,15 @@ bump must be open for these commands to work. The control server listens on
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
+		var ee *exitError
+		if errors.As(err, &ee) {
+			if ee.msg != "" {
+				fmt.Fprintln(os.Stderr, "bump: "+ee.msg)
+			}
+			os.Exit(ee.code)
+		}
 		fmt.Fprintln(os.Stderr, "bump: "+err.Error())
-		os.Exit(1)
+		os.Exit(exitGeneric)
 	}
 }
 
@@ -52,6 +84,8 @@ var commands = map[string]commandFunc{
 	"status":       cmdStatus,
 	"ls":           cmdTerminals,
 	"terminals":    cmdTerminals,
+	"ps":           cmdPs,
+	"watch":        cmdWatch,
 	"workspaces":   cmdWorkspaces,
 	"ws":           cmdWorkspaces,
 	"run":          cmdRun,
