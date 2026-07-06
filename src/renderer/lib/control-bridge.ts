@@ -7,7 +7,10 @@ import type {
   ControlWorkspaceInfo,
 } from "../../shared/types.js";
 
-const TERMINAL_READY_TIMEOUT_MS = 15000;
+// Terminal creation is now deterministic (see TerminalRegistry.initTerminal),
+// so this only guards against a genuinely stuck PTY spawn rather than a paused
+// requestAnimationFrame.
+const TERMINAL_READY_TIMEOUT_MS = 30000;
 
 function listWorkspaces(): ControlWorkspaceInfo[] {
   const state = useAppStore.getState();
