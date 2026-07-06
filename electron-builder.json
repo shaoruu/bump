@@ -8,6 +8,12 @@
   "files": [
     "dist/**/*"
   ],
+  "extraResources": [
+    {
+      "from": "dist/main/shell-integration",
+      "to": "shell-integration"
+    }
+  ],
   "mac": {
     "target": ["dmg"],
     "category": "public.app-category.developer-tools",

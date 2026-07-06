@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import electron from "vite-plugin-electron";
 import renderer from "vite-plugin-electron-renderer";
 import { resolve } from "path";
+import { copyShellIntegration } from "./scripts/vite-copy-shell-integration.mjs";
 
 export default defineConfig({
   plugins: [
@@ -11,6 +12,7 @@ export default defineConfig({
       {
         entry: "src/main/index.ts",
         vite: {
+          plugins: [copyShellIntegration()],
           build: {
             outDir: "dist/main",
             rollupOptions: {

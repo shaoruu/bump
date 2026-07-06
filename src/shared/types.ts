@@ -100,6 +100,51 @@ export interface GhosttyTheme {
   palette: string[];
 }
 
+export type TerminalJobStatus = "idle" | "running" | "unknown";
+
+// Per-terminal command lifecycle, driven by OSC 133 markers. Timestamps are
+// epoch milliseconds so both the renderer and the Go CLI can do plain math.
+export interface TerminalJobState {
+  status: TerminalJobStatus;
+  currentCommand: string | null;
+  lastCommand: string | null;
+  lastExitCode: number | null;
+  startedAt: number | null;
+  endedAt: number | null;
+  commandCount: number;
+}
+
+// Compact form embedded in the terminal list.
+export interface TerminalJobSummary {
+  status: TerminalJobStatus;
+  currentCommand: string | null;
+  lastExitCode: number | null;
+}
+
+export interface CommandStartEvent {
+  type: "command_start";
+  terminalId: string;
+  commandId: number;
+  command: string;
+  startedAt: number;
+}
+
+export interface CommandEndEvent {
+  type: "command_end";
+  terminalId: string;
+  commandId: number;
+  command: string;
+  exitCode: number | null;
+  startedAt: number | null;
+  endedAt: number;
+  durationMs: number | null;
+}
+
+export interface TerminalExitEvent {
+  terminalId: string;
+  exitCode: number;
+}
+
 export type ControlSplitDirection = "horizontal" | "vertical";
 
 export type ControlPaneNode =

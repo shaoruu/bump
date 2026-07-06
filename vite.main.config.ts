@@ -1,8 +1,10 @@
 import { defineConfig } from "vite";
 import { builtinModules } from "module";
 import { resolve } from "path";
+import { copyShellIntegration } from "./scripts/vite-copy-shell-integration.mjs";
 
 export default defineConfig({
+  plugins: [copyShellIntegration()],
   build: {
     lib: {
       entry: resolve(__dirname, "src/main/index.ts"),

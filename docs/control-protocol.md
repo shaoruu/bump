@@ -71,6 +71,39 @@ type PaneNode =
     };
 ```
 
+## Job model (OSC 133 shell integration)
+
+bump makes every terminal an observable job. It injects hooks into the shells it
+spawns (never the user's global dotfiles) that emit
+[OSC 133 semantic-prompt markers](https://gitlab.freedesktop.org/Per_Bothner/specifications/blob/master/proposals/semantic-prompts.md):
+
+- `OSC 133 ; A ST` — prompt start
+- `OSC 133 ; B ST` — prompt end / command start
+- `OSC 133 ; C ST` — command output begins (the command is now running)
+- `OSC 133 ; D ; <exitcode> ST` — command finished, with its exit status
+- `OSC 133 ; L ; <base64 command line> ST` — a bump extension carrying the
+  command line captured at `preexec`
+
+(`OSC` = `ESC ]`, `ST` = `ESC \` or BEL.) zsh integration is injected via a
+`ZDOTDIR` shim that sources the user's real startup files first; bash via
+`--rcfile`. The main process parses these markers out of the raw PTY stream to
+drive job state and strips them so they never reach the renderer or the log. A
+`D` not preceded by a `C` (the first prompt, or an empty line) is ignored rather
+than counted as a command.
+
+If integration does not load, a terminal's `status` stays `"unknown"` and it
+behaves exactly as before.
+
+A terminal's job is `{ status, currentCommand, lastCommand, lastExitCode, startedAt, endedAt, commandCount }`:
+
+- `status` — `"idle" | "running" | "unknown"`.
+- `currentCommand` — the command line while `running`, else `null`.
+- `lastCommand` / `lastExitCode` — the most recently finished command and its
+  exit code.
+- `startedAt` / `endedAt` — epoch milliseconds for the current or last command.
+- `commandCount` — monotonically increasing per-terminal command counter, also
+  used as the per-command id.
+
 ## Endpoints
 
 ### `GET /status`
@@ -83,8 +116,10 @@ Unauthenticated liveness ping.
 
 List every live terminal, joined with the workspace/pane that hosts it.
 
-`data.terminals[]`: `{ id, title, pid, cwd, gitBranch, logPath, workspaceId, paneId }`.
-`pid`, `cwd`, `gitBranch`, `workspaceId`, and `paneId` may be `null`.
+`data.terminals[]`: `{ id, title, pid, cwd, gitBranch, logPath, workspaceId, paneId, job }`.
+`pid`, `cwd`, `gitBranch`, `workspaceId`, and `paneId` may be `null`. `job` is a
+compact `{ status, currentCommand, lastExitCode }` summary (see
+[Job model](#job-model-osc-133-shell-integration)).
 
 ### `POST /terminals`
 
@@ -100,6 +135,23 @@ Recent output for a terminal. `lines` (optional) keeps only the last `N` lines.
 
 `data`: `{ id, lines, buffer }`.
 
+### `GET /terminals/:id/job`
+
+Current job state for one terminal (see
+[Job model](#job-model-osc-133-shell-integration)).
+
+`data`: `{ id, status, currentCommand, lastCommand, lastExitCode, startedAt, endedAt, commandCount }`.
+`startedAt`/`endedAt` are epoch milliseconds (or `null`); `currentCommand`,
+`lastCommand`, and `lastExitCode` may be `null`.
+
+### `GET /jobs` (alias `GET /ps`)
+
+Every terminal currently `running` a command.
+
+`data`: `{ jobs: [{ id, command, commandId, startedAt, elapsedMs }] }`, where
+`startedAt` is epoch milliseconds and `elapsedMs` is the time since the command
+began.
+
 ### `POST /terminals/:id/write`
 
 Write raw input to a terminal (no implicit newline).
@@ -112,6 +164,24 @@ Convenience wrapper that writes a command and presses Enter.
 
 Body: `{ command: string, enter?: boolean }` (`enter` defaults to `true`).
 `data`: `{ id, command, enter }`.
+
+To block until the command finishes, add `wait: true` (and optionally
+`timeoutMs`):
+
+Body: `{ command: string, wait: true, timeoutMs?: number }`. The request does not
+respond until the matching OSC 133 `D` fires. `data`:
+`{ id, command, exitCode, durationMs, commandId }` where `exitCode` may be
+`null` if the shell reported no status.
+
+Correlation and races: the completion is matched by the per-terminal
+`commandId` assigned when the command starts, so a completion from an unrelated
+command is never mistaken for this one. Waiting requires the terminal to be
+idle with shell integration active:
+
+- `409` if the terminal is already `running` a command, or if its status is
+  `unknown` (integration not loaded, so completion can't be detected).
+- `504` if `timeoutMs` elapses first (omit `timeoutMs` to wait indefinitely).
+- `410` if the terminal exits before the command finishes.
 
 ### `DELETE /terminals/:id`
 
@@ -162,6 +232,30 @@ Close a pane. `data`: `{ paneId, closed: true }`.
 
 Close every pane in the workspace except this one. `data`: `{ paneId }`.
 
+### `GET /events`
+
+A [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
+stream of command lifecycle events across all terminals. The connection stays
+open until the client disconnects; a `: ping` comment is sent every 15s to keep
+it alive. Pass `?terminal=<id>` to receive events for a single terminal only.
+The bearer token is sent in the `Authorization` header like every other
+authenticated request.
+
+Each event is a standard SSE frame with an `event:` type and a JSON `data:`
+payload:
+
+```
+event: command_start
+data: {"type":"command_start","terminalId":"term-1","commandId":7,"command":"pnpm build","startedAt":1751762400000}
+
+event: command_end
+data: {"type":"command_end","terminalId":"term-1","commandId":7,"command":"pnpm build","exitCode":0,"startedAt":1751762400000,"endedAt":1751762403120,"durationMs":3120}
+```
+
+- `command_start`: `{ type, terminalId, commandId, command, startedAt }`.
+- `command_end`: `{ type, terminalId, commandId, command, exitCode, startedAt, endedAt, durationMs }`
+  (`exitCode` and `durationMs` may be `null`).
+
 ## Architecture notes
 
 Terminals (PTYs) live in the main process, so terminal listing, reading, and
@@ -170,3 +264,7 @@ writing are served directly. Workspaces, panes, and layout live in the renderer
 bridge (`control:request` / `control:response`) with a timeout. If the renderer
 is unavailable, `GET /terminals` still returns the main-known terminals (without
 workspace/pane association) and workspace/pane endpoints return `500`.
+
+Job state also lives in the main process (the PTY layer parses OSC 133 from the
+stream), so `GET /terminals/:id/job`, `GET /jobs`, run-wait, and the `/events`
+stream are served directly and keep working even when the renderer is busy.

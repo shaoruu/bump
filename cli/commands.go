@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type parsedArgs struct {
@@ -87,14 +90,15 @@ func cmdTerminals(c *client, _ []string, jsonOut bool) error {
 		return nil
 	}
 	tw := newTable()
-	fmt.Fprintln(tw, "TERMINAL\tTITLE\tCWD\tBRANCH\tPID\tWORKSPACE\tPANE")
+	fmt.Fprintln(tw, "TERMINAL\tSTATUS\tTITLE\tCWD\tBRANCH\tPID\tWORKSPACE\tPANE")
 	for _, t := range td.Terminals {
 		cwd := "-"
 		if t.Cwd != nil {
 			cwd = shortHome(*t.Cwd)
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			t.ID,
+			jobStatusLabel(t.Job),
 			truncate(t.Title, 24),
 			truncate(cwd, 40),
 			strOr(t.GitBranch, "-"),
@@ -104,6 +108,83 @@ func cmdTerminals(c *client, _ []string, jsonOut bool) error {
 		)
 	}
 	return tw.Flush()
+}
+
+func cmdPs(c *client, _ []string, jsonOut bool) error {
+	data, err := c.get("/jobs")
+	if err != nil {
+		return err
+	}
+	if jsonOut {
+		return printJSON(data)
+	}
+	var jd jobsData
+	if err := json.Unmarshal(data, &jd); err != nil {
+		return err
+	}
+	if len(jd.Jobs) == 0 {
+		fmt.Println("no commands running")
+		return nil
+	}
+	tw := newTable()
+	fmt.Fprintln(tw, "TERMINAL\tELAPSED\tCOMMAND")
+	for _, j := range jd.Jobs {
+		elapsed := "-"
+		if j.ElapsedMs != nil {
+			elapsed = formatElapsed(*j.ElapsedMs)
+		}
+		cmd := "-"
+		if j.Command != nil && *j.Command != "" {
+			cmd = *j.Command
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", j.ID, elapsed, truncate(cmd, 60))
+	}
+	return tw.Flush()
+}
+
+func cmdWatch(c *client, args []string, jsonOut bool) error {
+	p, err := parseArgs(args, map[string]bool{"terminal": true}, nil)
+	if err != nil {
+		return err
+	}
+	path := "/events"
+	if t, ok := p.values["terminal"]; ok {
+		path += "?terminal=" + url.QueryEscape(t)
+	}
+
+	resp, err := c.stream(path)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	var payload string
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch {
+		case strings.HasPrefix(line, "data:"):
+			payload = strings.TrimSpace(line[len("data:"):])
+		case line == "":
+			if payload == "" {
+				continue
+			}
+			if jsonOut {
+				fmt.Println(payload)
+			} else {
+				var ev commandEvent
+				if json.Unmarshal([]byte(payload), &ev) == nil {
+					printWatchEvent(ev)
+				}
+			}
+			payload = ""
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return &exitError{code: exitNotRunning, msg: "event stream closed: " + err.Error()}
+	}
+	return nil
 }
 
 func cmdWorkspaces(c *client, _ []string, jsonOut bool) error {
@@ -136,8 +217,9 @@ func cmdWorkspaces(c *client, _ []string, jsonOut bool) error {
 }
 
 func cmdRun(c *client, args []string, jsonOut bool) error {
-	var workspace, pane string
+	var workspace, pane, timeoutStr string
 	newTerm := false
+	wait := false
 
 	idx := 0
 	for idx < len(args) {
@@ -152,6 +234,9 @@ func cmdRun(c *client, args []string, jsonOut bool) error {
 		switch {
 		case a == "--new" || a == "-n":
 			newTerm = true
+			idx++
+		case a == "--wait":
+			wait = true
 			idx++
 		case a == "--workspace" || a == "-w":
 			if idx+1 >= len(args) {
@@ -171,6 +256,15 @@ func cmdRun(c *client, args []string, jsonOut bool) error {
 		case strings.HasPrefix(a, "--pane="):
 			pane = strings.TrimPrefix(a, "--pane=")
 			idx++
+		case a == "--timeout":
+			if idx+1 >= len(args) {
+				return errors.New("--timeout requires a value")
+			}
+			timeoutStr = args[idx+1]
+			idx += 2
+		case strings.HasPrefix(a, "--timeout="):
+			timeoutStr = strings.TrimPrefix(a, "--timeout=")
+			idx++
 		default:
 			return fmt.Errorf("unknown flag %q for run (put flags before the command)", a)
 		}
@@ -179,6 +273,16 @@ func cmdRun(c *client, args []string, jsonOut bool) error {
 	command := strings.Join(args[idx:], " ")
 	if strings.TrimSpace(command) == "" {
 		return errors.New("run requires a command, e.g. bump run \"npm test\"")
+	}
+
+	if wait {
+		if newTerm || workspace != "" {
+			return errors.New("--wait needs an existing terminal; use --pane <id> or the active pane, not --new/--workspace")
+		}
+		return runWait(c, pane, command, timeoutStr, jsonOut)
+	}
+	if timeoutStr != "" {
+		return errors.New("--timeout only applies together with --wait")
 	}
 
 	var data json.RawMessage
@@ -223,6 +327,85 @@ func cmdRun(c *client, args []string, jsonOut bool) error {
 	}
 	fmt.Printf("ran in %s: %s\n", target, command)
 	return nil
+}
+
+// runWait issues a command and blocks until its matching OSC 133 completion,
+// then exits with the command's own exit code so `bump run --wait ... && ...`
+// works for scripting.
+func runWait(c *client, pane, command, timeoutStr string, jsonOut bool) error {
+	var terminalID string
+	var err error
+	if pane != "" {
+		terminalID, err = c.resolvePaneTerminal(pane)
+	} else {
+		terminalID, err = c.resolveActiveTerminal()
+	}
+	if err != nil {
+		return err
+	}
+
+	body := map[string]any{"command": command, "wait": true}
+	var clientTimeout time.Duration
+	if timeoutStr != "" {
+		d, perr := parseTimeout(timeoutStr)
+		if perr != nil {
+			return perr
+		}
+		body["timeoutMs"] = d.Milliseconds()
+		// Give the server's own deadline room to fire first.
+		clientTimeout = d + 30*time.Second
+	}
+
+	data, err := c.requestTimeout("POST", "/terminals/"+terminalID+"/run", body, clientTimeout)
+	if err != nil {
+		var ae *apiError
+		if errors.As(err, &ae) {
+			switch ae.status {
+			case 504:
+				return &exitError{code: exitTimeout, msg: ae.message}
+			case 409:
+				return &exitError{code: exitBusy, msg: ae.message}
+			case 404, 410:
+				return &exitError{code: exitUnknownID, msg: ae.message}
+			}
+		}
+		return err
+	}
+
+	var r runWaitData
+	if err := json.Unmarshal(data, &r); err != nil {
+		return err
+	}
+	if jsonOut {
+		if perr := printJSONValue(map[string]any{
+			"command":    r.Command,
+			"exitCode":   r.ExitCode,
+			"durationMs": r.DurationMs,
+		}); perr != nil {
+			return perr
+		}
+	}
+	code := 0
+	if r.ExitCode != nil {
+		code = *r.ExitCode
+	}
+	return &exitError{code: code}
+}
+
+func parseTimeout(s string) (time.Duration, error) {
+	if d, err := time.ParseDuration(s); err == nil {
+		if d <= 0 {
+			return 0, errors.New("--timeout must be positive")
+		}
+		return d, nil
+	}
+	if n, err := strconv.Atoi(s); err == nil {
+		if n <= 0 {
+			return 0, errors.New("--timeout must be positive")
+		}
+		return time.Duration(n) * time.Second, nil
+	}
+	return 0, fmt.Errorf("invalid --timeout %q (use e.g. 30s, 5m, or a number of seconds)", s)
 }
 
 func cmdWrite(c *client, args []string, jsonOut bool) error {

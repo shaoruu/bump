@@ -37,9 +37,12 @@ idempotent - re-run it after pulling changes. To only rebuild the binary, run
 
 ```bash
 bump status                       # is bump running? counts + uptime
-bump ls                           # list terminals (--json for machine output)
+bump ls                           # list terminals + status (--json for machine output)
+bump ps                           # list commands currently running
+bump watch [--terminal <id>]      # stream command start/finish events (jsonl with --json)
 bump ws                           # list workspaces and their panes
 bump run <cmd> [--new|--workspace <id>|--pane <id>]
+bump run --wait <cmd> [--timeout 5m]   # block until done; exit with its exit code
 bump read <termId> [--lines N]    # print recent output
 bump write <termId> <text>        # write raw input (no newline)
 bump close <termId>               # close a terminal
@@ -52,6 +55,18 @@ bump ws-new [dir] / bump ws-switch <id> / bump ws-close <id> / bump ws-rename <i
 `--json` gives clean machine-readable output on any command; `--dev` (or
 `BUMP_DEV=1`) targets a dev build (`~/.bump-dev`). Run `bump help` for the full
 surface.
+
+### Job observability
+
+Every bump terminal is a first-class job. bump injects
+[OSC 133](https://gitlab.freedesktop.org/Per_Bothner/specifications/blob/master/proposals/semantic-prompts.md)
+shell-integration hooks into the shells it spawns - only those, never your
+global `~/.zshrc` / `~/.bashrc` - so it always knows whether a terminal is idle
+or running, what the command is, and the last exit code, for commands issued via
+the CLI and commands typed by hand. `bump run --wait 'pnpm build' && ...` blocks
+on the real exit code, `bump ps` shows what is running, and `bump watch` streams
+live done/failed events. If integration cannot load, terminals still work
+exactly as before (status `unknown`).
 
 ### Notes
 

@@ -12,12 +12,19 @@ import { BUMP_DIR } from "./paths.js";
 import {
   closeTerminal,
   getAllTerminalInfo,
+  getRunningJobs,
   getTerminalBuffer,
   getTerminalDetails,
+  getTerminalJob,
   hasTerminal,
+  onCommandEnd,
+  onCommandStart,
+  onTerminalExit,
   writeTerminal,
 } from "./pty-manager.js";
 import type {
+  CommandEndEvent,
+  CommandStartEvent,
   ControlBridgeParams,
   ControlBridgeResult,
   ControlResponseMessage,
@@ -35,6 +42,8 @@ interface ControlRequestBody {
   data?: string;
   command?: string;
   enter?: boolean;
+  wait?: boolean;
+  timeoutMs?: number;
   direction?: ControlSplitDirection;
   cwd?: string;
   name?: string;
@@ -70,6 +79,7 @@ let lastWorkspaceCount = 0;
 let getWindowRef: (() => BrowserWindow | null) | null = null;
 
 const pendingRequests = new Map<string, PendingRequest>();
+const sseClients = new Set<ServerResponse>();
 
 function controlFilePath(): string {
   return join(BUMP_DIR, "control.json");
@@ -260,6 +270,7 @@ async function handleListTerminals(ctx: RouteContext): Promise<void> {
         logPath: info.logPath,
         workspaceId: location?.workspaceId ?? null,
         paneId: location?.paneId ?? null,
+        job: info.job,
       };
     })
   );
@@ -313,9 +324,167 @@ async function handleRun(ctx: RouteContext): Promise<void> {
     sendError(ctx.res, 400, "'command' (non-empty string) is required");
     return;
   }
+  if (body.wait) {
+    await runAndWait(ctx, id, body);
+    return;
+  }
   const enter = body.enter !== false;
   writeTerminal(id, body.command + (enter ? "\r" : ""));
   sendData(ctx.res, { id, command: body.command, enter });
+}
+
+// Run a command and hold the response until the matching OSC 133 `D` fires.
+async function runAndWait(
+  ctx: RouteContext,
+  id: string,
+  body: ControlRequestBody
+): Promise<void> {
+  const job = getTerminalJob(id);
+  if (!job) {
+    sendError(ctx.res, 404, `unknown terminal '${id}'`);
+    return;
+  }
+  if (job.status === "running") {
+    sendError(ctx.res, 409, "terminal is busy running another command");
+    return;
+  }
+  if (job.status === "unknown") {
+    sendError(
+      ctx.res,
+      409,
+      "shell integration is not active for this terminal, cannot wait"
+    );
+    return;
+  }
+
+  const command = body.command as string;
+  const baseCount = job.commandCount;
+  const timeoutMs =
+    typeof body.timeoutMs === "number" && body.timeoutMs > 0
+      ? body.timeoutMs
+      : 0;
+
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    let offEnd = () => {};
+    let offExit = () => {};
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    // Every exit path resolves the promise so the handler frame never leaks,
+    // even when the client disconnects mid-wait.
+    const finish = (respond?: () => void) => {
+      if (settled) return;
+      settled = true;
+      offEnd();
+      offExit();
+      if (timer) clearTimeout(timer);
+      ctx.req.removeListener("close", onClose);
+      respond?.();
+      resolve();
+    };
+    const onClose = () => finish();
+
+    offEnd = onCommandEnd((event: CommandEndEvent) => {
+      if (event.terminalId !== id || event.commandId <= baseCount) return;
+      finish(() =>
+        sendData(ctx.res, {
+          id,
+          command: event.command,
+          exitCode: event.exitCode,
+          durationMs: event.durationMs,
+          commandId: event.commandId,
+        })
+      );
+    });
+    offExit = onTerminalExit((event) => {
+      if (event.terminalId !== id) return;
+      finish(() =>
+        sendError(ctx.res, 410, "terminal exited before the command finished")
+      );
+    });
+    ctx.req.on("close", onClose);
+    if (timeoutMs > 0) {
+      timer = setTimeout(
+        () =>
+          finish(() =>
+            sendError(
+              ctx.res,
+              504,
+              `timed out after ${timeoutMs}ms waiting for the command to finish`
+            )
+          ),
+        timeoutMs
+      );
+    }
+
+    // Register listeners before writing so a fast command cannot slip through.
+    writeTerminal(id, command + "\r");
+  });
+}
+
+async function handleReadJob(ctx: RouteContext): Promise<void> {
+  const id = ctx.params.id;
+  const job = getTerminalJob(id);
+  if (!job) {
+    sendError(ctx.res, 404, `unknown terminal '${id}'`);
+    return;
+  }
+  sendData(ctx.res, { id, ...job });
+}
+
+async function handleListJobs(ctx: RouteContext): Promise<void> {
+  const now = Date.now();
+  const jobs = getRunningJobs().map((j) => ({
+    id: j.id,
+    command: j.command,
+    commandId: j.commandId,
+    startedAt: j.startedAt,
+    elapsedMs: j.startedAt !== null ? now - j.startedAt : null,
+  }));
+  sendData(ctx.res, { jobs });
+}
+
+// Server-Sent Events: stream command_start / command_end across all terminals.
+// The response is deliberately left open; the handler returns once wired up and
+// the socket is torn down on client disconnect or server shutdown.
+async function handleEvents(ctx: RouteContext): Promise<void> {
+  const res = ctx.res;
+  const terminalFilter = ctx.query.get("terminal");
+
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  sseClients.add(res);
+
+  const write = (chunk: string) => {
+    if (res.writableEnded) return;
+    try {
+      res.write(chunk);
+    } catch {
+      // Socket went away between checks; cleanup on the close event handles it.
+    }
+  };
+  write(": bump event stream\n\n");
+
+  const send = (event: CommandStartEvent | CommandEndEvent) => {
+    if (terminalFilter && event.terminalId !== terminalFilter) return;
+    write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+  };
+  const offStart = onCommandStart(send);
+  const offEnd = onCommandEnd(send);
+  const heartbeat = setInterval(() => write(": ping\n\n"), 15000);
+
+  const cleanup = () => {
+    clearInterval(heartbeat);
+    offStart();
+    offEnd();
+    sseClients.delete(res);
+  };
+  ctx.req.on("close", cleanup);
+  res.on("close", cleanup);
 }
 
 async function handleDeleteTerminal(ctx: RouteContext): Promise<void> {
@@ -440,6 +609,15 @@ const routes: Route[] = [
     auth: true,
     handler: handleReadBuffer,
   },
+  {
+    method: "GET",
+    template: ["terminals", ":id", "job"],
+    auth: true,
+    handler: handleReadJob,
+  },
+  { method: "GET", template: ["jobs"], auth: true, handler: handleListJobs },
+  { method: "GET", template: ["ps"], auth: true, handler: handleListJobs },
+  { method: "GET", template: ["events"], auth: true, handler: handleEvents },
   {
     method: "POST",
     template: ["terminals", ":id", "write"],
@@ -630,6 +808,14 @@ export async function startControlServer(
 }
 
 export function stopControlServer(): void {
+  for (const res of sseClients) {
+    try {
+      res.end();
+    } catch {
+      // ignore
+    }
+  }
+  sseClients.clear();
   if (server) {
     try {
       server.close();

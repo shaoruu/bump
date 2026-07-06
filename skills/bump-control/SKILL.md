@@ -1,6 +1,6 @@
 ---
 name: bump-control
-description: Control the bump terminal app from the command line via the `bump` CLI - list and read terminals, run commands inside them, and manage panes, workspaces, and layouts. Use when the user wants to inspect or drive bump's terminals, run a command inside bump, read a terminal's recent output, or split/arrange panes and create/switch/rename/close workspaces while bump is open.
+description: Control the bump terminal app from the command line via the `bump` CLI - list and read terminals, run commands inside them, track whether commands are running or have succeeded/failed, and manage panes, workspaces, and layouts. Use when the user wants to inspect or drive bump's terminals, run a command inside bump (optionally blocking on its exit code with `bump run --wait`), see what is running (`bump ps`) or stream command start/finish events (`bump watch`), read a terminal's recent output, or split/arrange panes and create/switch/rename/close workspaces while bump is open.
 ---
 
 # bump-control
@@ -28,8 +28,9 @@ server", or "make a new workspace for the api".
 1. **Check it is up:** run `bump status` first. Non-zero exit means bump is not
    running.
 2. **See the state:** `bump ls` for terminals, `bump ws` for workspaces/panes.
-3. **Act:** `bump run` to run commands, `bump read` to inspect output, and the
-   pane/workspace commands to arrange the UI.
+3. **Act:** `bump run` to run commands (`bump run --wait` to block on the exit
+   code), `bump read` to inspect output, `bump ps` / `bump watch` to see what is
+   running or stream results, and the pane/workspace commands to arrange the UI.
 
 Add `--json` to any command for machine-readable output that is easy to parse.
 IDs are stable strings: terminals look like `term-3`, panes like `a1b2c3`,
@@ -46,15 +47,16 @@ terminals:  3
 uptime:     12m4s
 ```
 
-`bump ls` lists terminals with the workspace and pane that host them:
+`bump ls` lists terminals with a status column (idle / running / `exit N` for a
+failed last command) and the workspace and pane that host them:
 
 ```
-TERMINAL  TITLE      CWD            BRANCH  PID    WORKSPACE  PANE
-term-1    api        ~/code/api     main    48310  ws-uuid-1  a1b2c3
-term-2    web        ~/code/web     feat-x  48344  ws-uuid-1  d4e5f6
+TERMINAL  STATUS   TITLE  CWD            BRANCH  PID    WORKSPACE  PANE
+term-1    running  api    ~/code/api     main    48310  ws-uuid-1  a1b2c3
+term-2    exit 1   web    ~/code/web     feat-x  48344  ws-uuid-1  d4e5f6
 ```
 
-`bump ls --json` (parse this in agents):
+`bump ls --json` (parse this in agents); each terminal carries a compact `job`:
 
 ```json
 {
@@ -67,11 +69,14 @@ term-2    web        ~/code/web     feat-x  48344  ws-uuid-1  d4e5f6
       "gitBranch": "main",
       "logPath": "/Users/ian/.bump/terminals/term-1.log",
       "workspaceId": "ws-uuid-1",
-      "paneId": "a1b2c3"
+      "paneId": "a1b2c3",
+      "job": { "status": "running", "currentCommand": "pnpm dev", "lastExitCode": null }
     }
   ]
 }
 ```
+
+`status` is `idle`, `running`, or `unknown` (shell integration not active).
 
 `bump ws --json` returns each workspace with its pane tree (layout) and the
 terminal in every pane:
@@ -124,6 +129,59 @@ everything after them is the command line.
 To send raw keystrokes without a trailing Enter (for example answering a
 prompt), use `bump write <terminalId> <text>`.
 
+## Jobs: what is running and whether it failed
+
+bump tracks a job per terminal via shell integration, so it knows whether each
+terminal is idle or running a command, what that command is, and the last
+command's exit code - for commands you issue **and** commands the user types by
+hand. This is the reliable way to react to success/failure instead of scraping
+output.
+
+**See what is running** with `bump ps`:
+
+```
+TERMINAL  ELAPSED  COMMAND
+term-1    12.3s    pnpm build
+term-4    1m4s     pnpm test
+```
+
+`bump ps --json` -> `{ "jobs": [{ "id": "term-1", "command": "pnpm build", "commandId": 7, "startedAt": 1751762400000, "elapsedMs": 12300 }] }`.
+
+**Run and react to the result** with `bump run --wait`. It blocks until the
+command finishes and exits with the command's own exit code, so it composes with
+normal shell logic:
+
+```bash
+bump run --wait 'pnpm build' && echo "build ok" || echo "build failed"
+```
+
+- Add `--timeout 5m` (or `30s`, or a number of seconds) to give up waiting; a
+  timeout exits `124`.
+- `--wait` runs in the active pane's terminal, or `--pane <id>` for a specific
+  one (not `--new`/`--workspace`). It needs the terminal idle; if it is busy you
+  get a non-zero "terminal is busy" error.
+- `bump run --wait --json 'pnpm build'` prints `{ "command": "pnpm build", "exitCode": 0, "durationMs": 3120 }`.
+
+A single command-exit inspection without blocking: `bump run 'pnpm build'`, wait,
+then read the job via `bump ls --json` and check `job.lastExitCode`.
+
+**Watch everything live** with `bump watch` (Ctrl-C to stop):
+
+```
+14:02:11  term-1  RUN   pnpm build
+14:02:14  term-1  DONE  pnpm build (3.12s)
+14:02:20  term-4  FAIL  pnpm test [exit 1] (44.0s)
+```
+
+`bump watch --json` emits one JSON object per line (jsonl) - ideal for reacting
+to any command finishing or failing across bump:
+
+```bash
+bump watch --json | while read -r line; do echo "$line" | jq 'select(.type=="command_end" and .exitCode!=0)'; done
+```
+
+Filter to one terminal with `bump watch --terminal term-1`.
+
 ## Reading output
 
 `bump read <terminalId>` prints recent output; `--lines N` limits it.
@@ -159,6 +217,11 @@ Workspaces:
   before reading output, since `run`/`read` on a terminal need the `term-*` id.
 - Prefer `--json` when you need to parse; the default output is for humans.
 - Non-zero exit codes always come with a message on stderr (bump not running,
-  unknown id, invalid flag), so check the exit code when scripting.
+  unknown id, invalid flag, `bump run --wait` timeout), so check the exit code
+  when scripting.
+- Prefer the job model (`bump run --wait`, `job.lastExitCode` from
+  `bump ls --json`, `bump watch`) over scraping output to decide whether a
+  command succeeded. If a terminal's `status` is `unknown`, shell integration is
+  not active there, so `--wait` will refuse rather than hang.
 - Newly created terminals take a moment to boot their shell; if a command seems
   to have no effect, wait briefly and `bump read` again.
