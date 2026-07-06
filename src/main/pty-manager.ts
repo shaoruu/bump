@@ -46,11 +46,42 @@ const TERMINALS_DIR = join(BUMP_DIR, "terminals");
 
 mkdirSync(TERMINALS_DIR, { recursive: true });
 
+// Strip terminal escape sequences and control noise so the captured log (and
+// the control server's `read`) is plain, parseable text. Preserves tab,
+// newline and carriage return.
 function stripAnsi(text: string): string {
-  return text.replace(
-    /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g,
-    ""
-  );
+  return text
+    .replace(/\u001b[\]P^_X][\s\S]*?(?:\u0007|\u001b\\|\u009c)/g, "")
+    .replace(
+      /[\u0090\u0098\u009d\u009e\u009f][\s\S]*?(?:\u0007|\u001b\\|\u009c)/g,
+      ""
+    )
+    .replace(/(?:\u001b\[|\u009b)[0-?]*[ -\/]*[@-~]/g, "")
+    .replace(/\u001b[ -\/]*[0-~]/g, "")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g, "");
+}
+
+const MAX_LOG_CARRY = 64 * 1024;
+
+// If the text ends inside an escape sequence that was split across PTY chunks,
+// return the index where that partial sequence begins so it can be held and
+// completed on the next chunk. Returns -1 when the text does not end
+// mid-sequence.
+function trailingPartialEscapeIndex(text: string): number {
+  const esc = text.lastIndexOf("\u001b");
+  if (esc === -1) return -1;
+  const seq = text.slice(esc);
+  if (/^\u001b[\]P^_X]/.test(seq)) {
+    // OSC/DCS/PM/APC/SOS: complete only once BEL or ST is seen.
+    return /\u0007|\u001b\\|\u009c/.test(seq.slice(2)) ? -1 : esc;
+  }
+  if (seq.startsWith("\u001b[")) {
+    // CSI: complete only once a final byte (@-~) is seen.
+    return /[@-~]/.test(seq.slice(2)) ? -1 : esc;
+  }
+  // A lone trailing ESC, or ESC followed only by intermediate bytes.
+  if (/^\u001b[ -\/]*$/.test(seq)) return esc;
+  return -1;
 }
 
 interface ManagedTerminal {
@@ -61,6 +92,7 @@ interface ManagedTerminal {
   title: string;
   ipcBuffer: string;
   ipcFlushScheduled: boolean;
+  logCarry: string;
 }
 
 const terminals = new Map<string, ManagedTerminal>();
@@ -119,7 +151,7 @@ export async function createTerminal(
 
   const managed: ManagedTerminal = {
     pty: ptyProcess, logPath, logStream, metaPath, title: resolvedCwd,
-    ipcBuffer: "", ipcFlushScheduled: false,
+    ipcBuffer: "", ipcFlushScheduled: false, logCarry: "",
   };
   terminals.set(id, managed);
 
@@ -146,8 +178,15 @@ export async function createTerminal(
       }
     }
 
-    const cleaned = stripAnsi(data);
-    if (cleaned.trim().length > 0) {
+    const combined = managed.logCarry + data;
+    const partialIndex = trailingPartialEscapeIndex(combined);
+    const boundary =
+      partialIndex === -1 || combined.length - partialIndex > MAX_LOG_CARRY
+        ? combined.length
+        : partialIndex;
+    managed.logCarry = combined.slice(boundary);
+    const cleaned = stripAnsi(combined.slice(0, boundary));
+    if (cleaned.length > 0) {
       logStream.write(cleaned);
     }
   });
