@@ -7,8 +7,9 @@ release/
 .cursor/*
 !.cursor/rules/
 
-# built Go CLI binary (build with `pnpm cli:build` or `pnpm setup:control`)
+# built Go CLI binaries (build with `pnpm cli:build` or `pnpm setup:control`)
 cli/bump
+cli/cli
 
 package-lock.json
 yarn.lock
