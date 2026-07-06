@@ -364,58 +364,57 @@ async function runAndWait(
       ? body.timeoutMs
       : 0;
 
-  let settled = false;
-  let offEnd = () => {};
-  let offExit = () => {};
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const cleanup = () => {
-    offEnd();
-    offExit();
-    if (timer) clearTimeout(timer);
-    ctx.req.removeListener("close", onClose);
-  };
-  const onClose = () => {
-    if (settled) return;
-    settled = true;
-    cleanup();
-  };
-
   await new Promise<void>((resolve) => {
-    offEnd = onCommandEnd((event: CommandEndEvent) => {
-      if (settled || event.terminalId !== id || event.commandId <= baseCount) {
-        return;
-      }
+    let settled = false;
+    let offEnd = () => {};
+    let offExit = () => {};
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    // Every exit path resolves the promise so the handler frame never leaks,
+    // even when the client disconnects mid-wait.
+    const finish = (respond?: () => void) => {
+      if (settled) return;
       settled = true;
-      cleanup();
-      sendData(ctx.res, {
-        id,
-        command: event.command,
-        exitCode: event.exitCode,
-        durationMs: event.durationMs,
-        commandId: event.commandId,
-      });
+      offEnd();
+      offExit();
+      if (timer) clearTimeout(timer);
+      ctx.req.removeListener("close", onClose);
+      respond?.();
       resolve();
+    };
+    const onClose = () => finish();
+
+    offEnd = onCommandEnd((event: CommandEndEvent) => {
+      if (event.terminalId !== id || event.commandId <= baseCount) return;
+      finish(() =>
+        sendData(ctx.res, {
+          id,
+          command: event.command,
+          exitCode: event.exitCode,
+          durationMs: event.durationMs,
+          commandId: event.commandId,
+        })
+      );
     });
     offExit = onTerminalExit((event) => {
-      if (settled || event.terminalId !== id) return;
-      settled = true;
-      cleanup();
-      sendError(ctx.res, 410, "terminal exited before the command finished");
-      resolve();
+      if (event.terminalId !== id) return;
+      finish(() =>
+        sendError(ctx.res, 410, "terminal exited before the command finished")
+      );
     });
     ctx.req.on("close", onClose);
     if (timeoutMs > 0) {
-      timer = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        sendError(
-          ctx.res,
-          504,
-          `timed out after ${timeoutMs}ms waiting for the command to finish`
-        );
-        resolve();
-      }, timeoutMs);
+      timer = setTimeout(
+        () =>
+          finish(() =>
+            sendError(
+              ctx.res,
+              504,
+              `timed out after ${timeoutMs}ms waiting for the command to finish`
+            )
+          ),
+        timeoutMs
+      );
     }
 
     // Register listeners before writing so a fast command cannot slip through.
@@ -458,19 +457,25 @@ async function handleEvents(ctx: RouteContext): Promise<void> {
     Connection: "keep-alive",
     "X-Accel-Buffering": "no",
   });
-  res.write(": bump event stream\n\n");
   sseClients.add(res);
+
+  const write = (chunk: string) => {
+    if (res.writableEnded) return;
+    try {
+      res.write(chunk);
+    } catch {
+      // Socket went away between checks; cleanup on the close event handles it.
+    }
+  };
+  write(": bump event stream\n\n");
 
   const send = (event: CommandStartEvent | CommandEndEvent) => {
     if (terminalFilter && event.terminalId !== terminalFilter) return;
-    res.write(`event: ${event.type}\n`);
-    res.write(`data: ${JSON.stringify(event)}\n\n`);
+    write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
   };
   const offStart = onCommandStart(send);
   const offEnd = onCommandEnd(send);
-  const heartbeat = setInterval(() => {
-    res.write(": ping\n\n");
-  }, 15000);
+  const heartbeat = setInterval(() => write(": ping\n\n"), 15000);
 
   const cleanup = () => {
     clearInterval(heartbeat);
