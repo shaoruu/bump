@@ -207,6 +207,23 @@ export function getTerminalCwd(id: string): Promise<string | null> {
   return resolveCwdAsync(terminal.pty.pid);
 }
 
+export function hasTerminal(id: string): boolean {
+  return terminals.has(id);
+}
+
+export async function getTerminalDetails(
+  id: string
+): Promise<{ pid: number; cwd: string | null; gitBranch: string | null } | null> {
+  const terminal = terminals.get(id);
+  if (!terminal) return null;
+  const cwd = await resolveCwdAsync(terminal.pty.pid);
+  return {
+    pid: terminal.pty.pid,
+    cwd,
+    gitBranch: cwd ? findGitBranch(cwd) : null,
+  };
+}
+
 export function getTerminalTitle(id: string): string {
   const terminal = terminals.get(id);
   return terminal?.title ?? "terminal";
