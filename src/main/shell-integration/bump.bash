@@ -42,8 +42,8 @@ __bump_emit_d() {
 
 # base64 keeps arbitrary command lines safe to embed; bump decodes it.
 __bump_emit_l() {
-  local encoded
-  encoded=$(printf '%s' "$1" | base64 2>/dev/null | tr -d '\n')
+  local cmd="${1:0:8192}" encoded
+  encoded=$(printf '%s' "$cmd" | base64 2>/dev/null | tr -d '\n')
   printf '\e]133;L;%s\a' "$encoded"
 }
 

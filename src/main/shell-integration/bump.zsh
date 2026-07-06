@@ -33,8 +33,8 @@ __bump_emit_d() {
 # embed in the marker; bump decodes it on the other side.
 __bump_emit_l() {
   builtin emulate -L zsh
-  builtin local encoded
-  encoded=$(builtin printf '%s' "$1" | base64 2>/dev/null | tr -d '\n')
+  builtin local cmd="${1[1,8192]}" encoded
+  encoded=$(builtin printf '%s' "$cmd" | base64 2>/dev/null | tr -d '\n')
   builtin printf '\e]133;L;%s\a' "$encoded"
 }
 
