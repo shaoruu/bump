@@ -125,9 +125,11 @@ compact `{ status, currentCommand, lastExitCode }` summary (see
 
 Open a fresh terminal and optionally run a command.
 
-Body: `{ workspaceId?, cwd?, command? }`. With `workspaceId`, the terminal opens
-as a split of that workspace's active pane; without it, a new workspace is
-created. `data`: `{ workspaceId, paneId, terminalId }`.
+Body: `{ workspaceId?, cwd?, command?, name?, isEphemeral? }`. With
+`workspaceId`, the terminal opens as a split of that workspace's active pane
+(`name`/`isEphemeral` are ignored); without it, a new workspace is created (see
+[`POST /workspaces`](#post-workspaces) for how `name` and `isEphemeral` are
+resolved). `data`: `{ workspaceId, paneId, terminalId }`.
 
 ### `GET /terminals/:id/buffer?lines=N`
 
@@ -194,11 +196,19 @@ Close a terminal. Its pane closes with it (or restarts if it was the only pane).
 List workspaces with their layout and the terminal in each pane.
 
 `data`: `{ workspaces: WorkspaceInfo[], activeWorkspaceId }` where
-`WorkspaceInfo = { id, name, isActive, activePaneId, paneTree, panes: [{ paneId, terminalId }] }`.
+`WorkspaceInfo = { id, name, isActive, isEphemeral, activePaneId, paneTree, panes: [{ paneId, terminalId }] }`.
 
 ### `POST /workspaces`
 
-Create a workspace. Body: `{ cwd? }`. `data`: `{ workspaceId, paneId, terminalId }`.
+Create a workspace. Body: `{ cwd?, name?, isEphemeral? }`. `data`:
+`{ workspaceId, paneId, terminalId }`.
+
+- `name` falls back to the command the workspace was created to run
+  (`POST /terminals` with `command`), then the basename of `cwd`, then
+  `"workspace"`.
+- `isEphemeral` defaults to `true`: control-created workspaces are
+  session-scoped (see [Ephemeral workspaces](#ephemeral-workspaces)). Pass
+  `false` to create a permanent workspace.
 
 ### `POST /workspaces/:id/activate`
 
@@ -207,11 +217,42 @@ Switch to a workspace. `data`: `{ workspaceId }`.
 ### `PATCH /workspaces/:id`
 
 Rename a workspace. Body: `{ name: string }`. `data`: `{ workspaceId }`.
+Renaming over the control API does not change ephemerality (renaming in the UI
+does).
+
+### `POST /workspaces/:id/keep`
+
+Clear a workspace's ephemeral flag so it persists like a user-created one.
+`data`: `{ workspaceId }`.
+
+### `POST /workspaces/clean`
+
+Close every ephemeral workspace whose terminals are all idle (skipping the
+active workspace). `data`: `{ closedWorkspaceIds: string[] }`.
 
 ### `DELETE /workspaces/:id`
 
 Close a workspace and its terminals (refused if it is the last workspace).
 `data`: `{ workspaceId, closed: true }`.
+
+## Ephemeral workspaces
+
+Workspaces created through the control server default to `isEphemeral: true`.
+They exist to keep agent-driven scratch work from accumulating in the user's
+tab bar:
+
+- They render italic/dimmed in the tab bar.
+- They are excluded from layout persistence, so they do not survive an app
+  restart.
+- A reaper in the renderer closes an ephemeral workspace once every terminal
+  in it has been idle (per shell integration) for ~15 minutes, using the last
+  command end as the idle anchor. The active workspace is only reaped while
+  the window is unfocused, so a tab never disappears in front of the user.
+  Terminals whose job status is `running` or `unknown` block reaping.
+
+A workspace stops being ephemeral when a client calls
+`POST /workspaces/:id/keep` (CLI `bump ws-keep`), when it was created with
+`isEphemeral: false` (CLI `--keep`), or when the user renames it in the UI.
 
 ### `POST /panes/:id/split`
 

@@ -38,6 +38,8 @@ Commands:
   workspaces, ws                  list workspaces and their panes
   run [flags] <command...>        run a command in a terminal
       --new                         run in a fresh terminal (new workspace)
+      --name <name>                 with --new, name the workspace
+      --keep                        with --new, make the workspace permanent
       --workspace <id>              run in a fresh terminal in that workspace
       --pane <id>                   run in the terminal hosted by that pane
       --wait                        block until the command finishes; exit with
@@ -52,14 +54,22 @@ Commands:
   focus <paneId>                  focus a pane
   close-pane <paneId>             close a pane
   close-others <paneId>           close every pane except this one
-  ws-new [dir]                    create a workspace (optionally in a directory)
+  ws-new [dir] [--name <name>] [--keep]
+                                  create a workspace (optionally in a directory)
   ws-switch <id>                  switch to a workspace
   ws-close <id>                   close a workspace
   ws-rename <id> <name...>        rename a workspace
+  ws-keep <id>                    make an ephemeral workspace permanent
+  clean                           close idle ephemeral workspaces now
 
 Global flags:
   --json    print raw JSON (great for agents and scripts)
   --dev     talk to a dev build of bump (~/.bump-dev); also BUMP_DEV=1
+
+Workspaces created through the CLI are ephemeral by default: they are not
+restored after a restart and are closed automatically once every terminal in
+them has been idle for a while. Use --keep, ws-keep, or a rename in the UI to
+make one permanent.
 
 bump must be open for these commands to work. The control server listens on
 127.0.0.1 only and is gated by a per-session bearer token.`
@@ -100,6 +110,8 @@ var commands = map[string]commandFunc{
 	"ws-switch":    cmdWsSwitch,
 	"ws-close":     cmdWsClose,
 	"ws-rename":    cmdWsRename,
+	"ws-keep":      cmdWsKeep,
+	"clean":        cmdClean,
 }
 
 func run(rawArgs []string) error {

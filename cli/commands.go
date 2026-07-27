@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -204,22 +205,27 @@ func cmdWorkspaces(c *client, _ []string, jsonOut bool) error {
 		return nil
 	}
 	tw := newTable()
-	fmt.Fprintln(tw, "\tWORKSPACE\tNAME\tPANES\tACTIVE PANE")
+	fmt.Fprintln(tw, "\tWORKSPACE\tNAME\tKIND\tPANES\tACTIVE PANE")
 	for _, ws := range wd.Workspaces {
 		marker := " "
 		if ws.IsActive {
 			marker = "*"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\n",
-			marker, ws.ID, truncate(ws.Name, 24), len(ws.Panes), ws.ActivePaneID)
+		kind := "kept"
+		if ws.IsEphemeral {
+			kind = "ephemeral"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d\t%s\n",
+			marker, ws.ID, truncate(ws.Name, 24), kind, len(ws.Panes), ws.ActivePaneID)
 	}
 	return tw.Flush()
 }
 
 func cmdRun(c *client, args []string, jsonOut bool) error {
-	var workspace, pane, timeoutStr string
+	var workspace, pane, timeoutStr, name string
 	newTerm := false
 	wait := false
+	keep := false
 
 	idx := 0
 	for idx < len(args) {
@@ -237,6 +243,18 @@ func cmdRun(c *client, args []string, jsonOut bool) error {
 			idx++
 		case a == "--wait":
 			wait = true
+			idx++
+		case a == "--keep":
+			keep = true
+			idx++
+		case a == "--name":
+			if idx+1 >= len(args) {
+				return errors.New("--name requires a value")
+			}
+			name = args[idx+1]
+			idx += 2
+		case strings.HasPrefix(a, "--name="):
+			name = strings.TrimPrefix(a, "--name=")
 			idx++
 		case a == "--workspace" || a == "-w":
 			if idx+1 >= len(args) {
@@ -284,12 +302,22 @@ func cmdRun(c *client, args []string, jsonOut bool) error {
 	if timeoutStr != "" {
 		return errors.New("--timeout only applies together with --wait")
 	}
+	if (name != "" || keep) && !newTerm {
+		return errors.New("--name/--keep only apply together with --new")
+	}
 
 	var data json.RawMessage
 	var err error
 	switch {
 	case newTerm:
-		data, err = c.post("/terminals", map[string]any{"command": command})
+		body := map[string]any{"command": command}
+		if name != "" {
+			body["name"] = name
+		}
+		if keep {
+			body["isEphemeral"] = false
+		}
+		data, err = c.post("/terminals", body)
 	case workspace != "":
 		data, err = c.post("/terminals", map[string]any{
 			"workspaceId": workspace,
@@ -586,13 +614,23 @@ func cmdFocus(c *client, args []string, jsonOut bool) error {
 }
 
 func cmdWsNew(c *client, args []string, jsonOut bool) error {
-	p, err := parseArgs(args, nil, nil)
+	p, err := parseArgs(args, map[string]bool{"name": true}, map[string]bool{"keep": true})
 	if err != nil {
 		return err
 	}
 	body := map[string]any{}
 	if len(p.positional) > 0 {
-		body["cwd"] = p.positional[0]
+		dir, err := filepath.Abs(p.positional[0])
+		if err != nil {
+			return fmt.Errorf("invalid directory %q: %w", p.positional[0], err)
+		}
+		body["cwd"] = dir
+	}
+	if name, ok := p.values["name"]; ok {
+		body["name"] = name
+	}
+	if p.bools["keep"] {
+		body["isEphemeral"] = false
 	}
 	data, err := c.post("/workspaces", body)
 	if err != nil {
@@ -605,8 +643,12 @@ func cmdWsNew(c *client, args []string, jsonOut bool) error {
 	if err := json.Unmarshal(data, &r); err != nil {
 		return err
 	}
-	fmt.Printf("created workspace %s (pane %s, terminal %s)\n",
-		r.WorkspaceID, r.PaneID, r.TerminalID)
+	kind := "ephemeral workspace"
+	if p.bools["keep"] {
+		kind = "workspace"
+	}
+	fmt.Printf("created %s %s (pane %s, terminal %s)\n",
+		kind, r.WorkspaceID, r.PaneID, r.TerminalID)
 	return nil
 }
 
@@ -668,5 +710,49 @@ func cmdWsRename(c *client, args []string, jsonOut bool) error {
 		return printJSON(data)
 	}
 	fmt.Printf("renamed workspace %s to %q\n", id, name)
+	return nil
+}
+
+func cmdWsKeep(c *client, args []string, jsonOut bool) error {
+	p, err := parseArgs(args, nil, nil)
+	if err != nil {
+		return err
+	}
+	if len(p.positional) < 1 {
+		return errors.New("usage: bump ws-keep <workspaceId>")
+	}
+	id := p.positional[0]
+	data, err := c.post("/workspaces/"+id+"/keep", nil)
+	if err != nil {
+		return err
+	}
+	if jsonOut {
+		return printJSON(data)
+	}
+	fmt.Printf("kept workspace %s (no longer ephemeral)\n", id)
+	return nil
+}
+
+func cmdClean(c *client, args []string, jsonOut bool) error {
+	if _, err := parseArgs(args, nil, nil); err != nil {
+		return err
+	}
+	data, err := c.post("/workspaces/clean", nil)
+	if err != nil {
+		return err
+	}
+	if jsonOut {
+		return printJSON(data)
+	}
+	var cd cleanData
+	if err := json.Unmarshal(data, &cd); err != nil {
+		return err
+	}
+	if len(cd.ClosedWorkspaceIDs) == 0 {
+		fmt.Println("nothing to clean (no idle ephemeral workspaces)")
+		return nil
+	}
+	fmt.Printf("closed %d ephemeral workspace(s): %s\n",
+		len(cd.ClosedWorkspaceIDs), strings.Join(cd.ClosedWorkspaceIDs, ", "))
 	return nil
 }

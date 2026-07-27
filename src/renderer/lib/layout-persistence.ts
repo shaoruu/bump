@@ -42,19 +42,23 @@ function isValidLayout(layout: PersistedLayout): boolean {
 async function collectLayout(): Promise<PersistedLayout> {
   const state = useAppStore.getState();
 
-  const allWorkspaces = state.workspaces.map((w) =>
-    w.id === state.activeWorkspaceId
-      ? {
-          ...w,
-          panes: Array.from(state.panes.entries()),
-          paneTree: state.paneTree,
-          activePaneId: state.activePaneId,
-        }
-      : w
-  );
+  // Ephemeral workspaces are session-scoped by design: they never reach disk,
+  // so a restart always starts from the user's own workspaces.
+  const keptWorkspaces = state.workspaces
+    .filter((w) => !w.isEphemeral)
+    .map((w) =>
+      w.id === state.activeWorkspaceId
+        ? {
+            ...w,
+            panes: Array.from(state.panes.entries()),
+            paneTree: state.paneTree,
+            activePaneId: state.activePaneId,
+          }
+        : w
+    );
 
   const persistedWorkspaces: PersistedWorkspace[] = await Promise.all(
-    allWorkspaces.map(async (ws) => {
+    keptWorkspaces.map(async (ws) => {
       const persistedPanes: [string, PersistedPane][] = await Promise.all(
         ws.panes.map(async ([id, pane]) => {
           let cwd: string | undefined;
@@ -81,9 +85,15 @@ async function collectLayout(): Promise<PersistedLayout> {
     })
   );
 
+  const isActivePersisted = persistedWorkspaces.some(
+    (w) => w.id === state.activeWorkspaceId
+  );
+
   return {
     workspaces: persistedWorkspaces,
-    activeWorkspaceId: state.activeWorkspaceId,
+    activeWorkspaceId: isActivePersisted
+      ? state.activeWorkspaceId
+      : (persistedWorkspaces[0]?.id ?? ""),
   };
 }
 

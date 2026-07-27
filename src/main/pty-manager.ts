@@ -11,6 +11,7 @@ import type {
   CommandEndEvent,
   CommandStartEvent,
   TerminalExitEvent,
+  TerminalJobActivity,
   TerminalJobState,
   TerminalJobSummary,
 } from "../shared/types.js";
@@ -379,6 +380,7 @@ interface ManagedTerminal {
   logStream: WriteStream;
   metaPath: string;
   title: string;
+  createdAt: number;
   ipcBuffer: string;
   ipcFlushScheduled: boolean;
   logCarry: string;
@@ -445,8 +447,9 @@ export async function createTerminal(
 
   const managed: ManagedTerminal = {
     pty: ptyProcess, logPath, logStream, metaPath, title: resolvedCwd,
-    ipcBuffer: "", ipcFlushScheduled: false, logCarry: "",
-    oscCarry: "", pendingCommand: null, currentCommandId: 0, job: newJobState(),
+    createdAt: Date.now(), ipcBuffer: "", ipcFlushScheduled: false,
+    logCarry: "", oscCarry: "", pendingCommand: null, currentCommandId: 0,
+    job: newJobState(),
   };
   terminals.set(id, managed);
 
@@ -615,6 +618,15 @@ export function getAllTerminalInfo(): {
     logPath: t.logPath,
     title: t.title,
     job: jobSummary(t.job),
+  }));
+}
+
+export function getAllTerminalJobActivity(): TerminalJobActivity[] {
+  return Array.from(terminals.entries()).map(([id, t]) => ({
+    id,
+    status: t.job.status,
+    endedAt: t.job.endedAt,
+    createdAt: t.createdAt,
   }));
 }
 

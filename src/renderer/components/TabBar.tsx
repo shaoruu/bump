@@ -16,7 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAppStore } from "../store/appStore.js";
-import { terminalRegistry } from "./TerminalRegistry.js";
+import { destroyWorkspace } from "../lib/workspace-lifecycle.js";
 
 function useCurrentTime() {
   const [time, setTime] = useState(() => new Date());
@@ -42,8 +42,8 @@ export function TabBar() {
   const workspaces = useAppStore((s) => s.workspaces);
   const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId);
   const switchWorkspace = useAppStore((s) => s.switchWorkspace);
-  const closeWorkspace = useAppStore((s) => s.closeWorkspace);
   const renameWorkspace = useAppStore((s) => s.renameWorkspace);
+  const keepWorkspace = useAppStore((s) => s.keepWorkspace);
   const reorderWorkspaces = useAppStore((s) => s.reorderWorkspaces);
   const createWorkspace = useAppStore((s) => s.createWorkspace);
 
@@ -64,17 +64,7 @@ export function TabBar() {
     const ws = state.workspaces.find((w) => w.id === wsId);
     openConfirm({
       title: `Close "${ws?.name ?? "workspace"}"?`,
-      onConfirm: () => {
-        const current = useAppStore.getState();
-        const panes = wsId === current.activeWorkspaceId
-          ? current.panes
-          : new Map(current.workspaces.find((w) => w.id === wsId)!.panes);
-
-        for (const [paneId] of panes) {
-          terminalRegistry.destroy(paneId);
-        }
-        current.closeWorkspace(wsId);
-      },
+      onConfirm: () => destroyWorkspace(wsId),
     });
   }, [openConfirm]);
 
@@ -118,11 +108,17 @@ export function TabBar() {
                 id={ws.id}
                 name={ws.name}
                 isActive={ws.id === activeWorkspaceId}
+                isEphemeral={ws.isEphemeral}
                 index={idx}
                 canClose={workspaces.length > 1}
                 onSelect={() => switchWorkspace(ws.id)}
                 onClose={() => handleCloseWorkspace(ws.id)}
-                onRename={(name) => renameWorkspace(ws.id, name)}
+                onRename={(name) => {
+                  // A human naming a tab is a claim on it: renamed workspaces
+                  // stop being ephemeral and persist like any other.
+                  renameWorkspace(ws.id, name);
+                  keepWorkspace(ws.id);
+                }}
               />
             ))}
           </SortableContext>
@@ -145,6 +141,7 @@ interface SortableTabProps {
   id: string;
   name: string;
   isActive: boolean;
+  isEphemeral: boolean;
   index: number;
   canClose: boolean;
   onSelect: () => void;
@@ -156,6 +153,7 @@ function SortableTab({
   id,
   name,
   isActive,
+  isEphemeral,
   index,
   canClose,
   onSelect,
@@ -234,7 +232,11 @@ function SortableTab({
           autoFocus
         />
       ) : (
-        <span className="truncate max-w-[120px]">{name}</span>
+        <span
+          className={`truncate max-w-[120px] ${isEphemeral ? "italic opacity-70" : ""}`}
+        >
+          {name}
+        </span>
       )}
       {!editing && (index < 9 || canClose) && (
         <span className="w-3 h-3 flex items-center justify-center text-2xs leading-none shrink-0">

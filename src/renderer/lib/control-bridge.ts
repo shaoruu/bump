@@ -1,6 +1,8 @@
 import { useAppStore, collectLeafIds } from "../store/appStore.js";
 import { terminalRegistry } from "../components/TerminalRegistry.js";
 import { pendingInputs } from "../components/PaneContainer.js";
+import { destroyWorkspace } from "./workspace-lifecycle.js";
+import { reapIdleEphemeralWorkspaces } from "./workspace-reaper.js";
 import type {
   ControlBridgeParams,
   ControlBridgeResult,
@@ -11,6 +13,12 @@ import type {
 // so this only guards against a genuinely stuck PTY spawn rather than a paused
 // requestAnimationFrame.
 const TERMINAL_READY_TIMEOUT_MS = 30000;
+
+// `bump clean` closes idle ephemeral workspaces immediately; the small grace
+// window only protects a workspace whose first command has not started yet.
+const CLEAN_IDLE_MS = 60 * 1000;
+
+const MAX_DERIVED_NAME_LENGTH = 24;
 
 function listWorkspaces(): ControlWorkspaceInfo[] {
   const state = useAppStore.getState();
@@ -23,6 +31,7 @@ function listWorkspaces(): ControlWorkspaceInfo[] {
       id: ws.id,
       name: ws.name,
       isActive,
+      isEphemeral: ws.isEphemeral,
       activePaneId: isActive ? state.activePaneId : ws.activePaneId,
       paneTree: isActive ? state.paneTree : ws.paneTree,
       panes: paneEntries.map(([paneId, pane]) => ({
@@ -94,14 +103,31 @@ async function splitPaneAndRun(
   return { paneId: newPaneId, terminalId };
 }
 
-async function newWorkspaceWithTerminal(
-  cwd?: string,
+// A control-created workspace should never end up as a blank "workspace" tab:
+// prefer the explicit name, then the command it was created to run.
+function deriveControlName(
+  name?: string,
   command?: string
+): string | undefined {
+  const explicit = name?.trim();
+  if (explicit) return explicit;
+  const fromCommand = command?.trim();
+  if (!fromCommand) return undefined;
+  return fromCommand.length > MAX_DERIVED_NAME_LENGTH
+    ? fromCommand.slice(0, MAX_DERIVED_NAME_LENGTH - 1) + "\u2026"
+    : fromCommand;
+}
+
+async function newWorkspaceWithTerminal(
+  params: ControlBridgeParams
 ): Promise<ControlBridgeResult> {
-  useAppStore.getState().createWorkspace(cwd);
+  useAppStore.getState().createWorkspace(params.cwd, {
+    name: deriveControlName(params.name, params.command),
+    isEphemeral: params.isEphemeral ?? true,
+  });
   const state = useAppStore.getState();
   const paneId = state.activePaneId;
-  if (command) pendingInputs.set(paneId, command + "\r");
+  if (params.command) pendingInputs.set(paneId, params.command + "\r");
   const terminalId = await waitForPaneTerminal(paneId);
   return { workspaceId: state.activeWorkspaceId, paneId, terminalId };
 }
@@ -110,7 +136,7 @@ async function createTerminal(
   params: ControlBridgeParams
 ): Promise<ControlBridgeResult> {
   if (!params.workspaceId) {
-    return newWorkspaceWithTerminal(params.cwd, params.command);
+    return newWorkspaceWithTerminal(params);
   }
   const state = useAppStore.getState();
   if (!state.workspaces.some((w) => w.id === params.workspaceId)) {
@@ -146,8 +172,7 @@ function closePane(params: ControlBridgeParams): ControlBridgeResult {
     if (state.workspaces.length <= 1) {
       throw new Error("cannot close the last pane of the last workspace");
     }
-    for (const [id] of state.panes) terminalRegistry.destroy(id);
-    state.closeWorkspace(state.activeWorkspaceId);
+    destroyWorkspace(state.activeWorkspaceId);
     return { paneId, closed: true };
   }
   terminalRegistry.destroy(paneId);
@@ -191,16 +216,30 @@ function closeWorkspace(params: ControlBridgeParams): ControlBridgeResult {
   const id = params.id;
   if (!id) throw new Error("workspace id is required");
   const state = useAppStore.getState();
+  if (!state.workspaces.some((w) => w.id === id)) {
+    throw new Error(`unknown workspace '${id}'`);
+  }
   if (state.workspaces.length <= 1) {
     throw new Error("cannot close the last workspace");
   }
-  const target = state.workspaces.find((w) => w.id === id);
-  if (!target) throw new Error(`unknown workspace '${id}'`);
-  const panes =
-    id === state.activeWorkspaceId ? state.panes : new Map(target.panes);
-  for (const [paneId] of panes) terminalRegistry.destroy(paneId);
-  state.closeWorkspace(id);
+  destroyWorkspace(id);
   return { workspaceId: id, closed: true };
+}
+
+function keepWorkspace(params: ControlBridgeParams): ControlBridgeResult {
+  const id = params.id;
+  if (!id) throw new Error("workspace id is required");
+  const state = useAppStore.getState();
+  if (!state.workspaces.some((w) => w.id === id)) {
+    throw new Error(`unknown workspace '${id}'`);
+  }
+  state.keepWorkspace(id);
+  return { workspaceId: id };
+}
+
+async function cleanWorkspaces(): Promise<ControlBridgeResult> {
+  const closedWorkspaceIds = await reapIdleEphemeralWorkspaces(CLEAN_IDLE_MS);
+  return { closedWorkspaceIds };
 }
 
 function handle(
@@ -211,11 +250,15 @@ function handle(
     case "workspaces.list":
       return { workspaces: listWorkspaces() };
     case "workspaces.create":
-      return newWorkspaceWithTerminal(params.cwd, params.command);
+      return newWorkspaceWithTerminal(params);
     case "workspaces.activate":
       return activateWorkspace(params);
     case "workspaces.rename":
       return renameWorkspace(params);
+    case "workspaces.keep":
+      return keepWorkspace(params);
+    case "workspaces.clean":
+      return cleanWorkspaces();
     case "workspaces.close":
       return closeWorkspace(params);
     case "panes.split":

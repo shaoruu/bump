@@ -48,6 +48,7 @@ interface ControlRequestBody {
   cwd?: string;
   name?: string;
   workspaceId?: string;
+  isEphemeral?: boolean;
 }
 
 interface RouteContext {
@@ -509,7 +510,11 @@ async function handleListWorkspaces(ctx: RouteContext): Promise<void> {
 
 async function handleCreateWorkspace(ctx: RouteContext): Promise<void> {
   const body = await readJson(ctx.req);
-  const result = await callRenderer("workspaces.create", { cwd: body.cwd });
+  const result = await callRenderer("workspaces.create", {
+    cwd: body.cwd,
+    name: body.name,
+    isEphemeral: body.isEphemeral,
+  });
   sendData(ctx.res, {
     workspaceId: result.workspaceId,
     paneId: result.paneId,
@@ -542,6 +547,18 @@ async function handleCloseWorkspace(ctx: RouteContext): Promise<void> {
   sendData(ctx.res, {
     workspaceId: result.workspaceId,
     closed: result.closed ?? true,
+  });
+}
+
+async function handleKeepWorkspace(ctx: RouteContext): Promise<void> {
+  const result = await callRenderer("workspaces.keep", { id: ctx.params.id });
+  sendData(ctx.res, { workspaceId: result.workspaceId });
+}
+
+async function handleCleanWorkspaces(ctx: RouteContext): Promise<void> {
+  const result = await callRenderer("workspaces.clean", {});
+  sendData(ctx.res, {
+    closedWorkspaceIds: result.closedWorkspaceIds ?? [],
   });
 }
 
@@ -581,6 +598,8 @@ async function handleCreateTerminal(ctx: RouteContext): Promise<void> {
     workspaceId: body.workspaceId,
     cwd: body.cwd,
     command: body.command,
+    name: body.name,
+    isEphemeral: body.isEphemeral,
   });
   sendData(ctx.res, {
     workspaceId: result.workspaceId,
@@ -650,9 +669,21 @@ const routes: Route[] = [
   },
   {
     method: "POST",
+    template: ["workspaces", "clean"],
+    auth: true,
+    handler: handleCleanWorkspaces,
+  },
+  {
+    method: "POST",
     template: ["workspaces", ":id", "activate"],
     auth: true,
     handler: handleActivateWorkspace,
+  },
+  {
+    method: "POST",
+    template: ["workspaces", ":id", "keep"],
+    auth: true,
+    handler: handleKeepWorkspace,
   },
   {
     method: "PATCH",

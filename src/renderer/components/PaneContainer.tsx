@@ -3,6 +3,7 @@ import { useAppStore } from "../store/appStore.js";
 import type { PaneNode } from "../store/appStore.js";
 import { SplitView } from "./SplitView.js";
 import { terminalRegistry } from "./TerminalRegistry.js";
+import { destroyWorkspace } from "../lib/workspace-lifecycle.js";
 import { CopyIcon, ZapIcon, MoreHorizontalIcon, CheckIcon } from "./Icons.js";
 import { Tooltip } from "./Tooltip.js";
 import { useMenuPosition, type Position } from "../hooks/useMenuPosition.js";
@@ -555,13 +556,7 @@ function usePaneActions(paneId: string, onClose: () => void) {
       const ws = workspaces.find((w) => w.id === activeWorkspaceId);
       openConfirm({
         title: `Close "${ws?.name ?? "workspace"}"?`,
-        onConfirm: () => {
-          const s = useAppStore.getState();
-          for (const [id] of s.panes) {
-            terminalRegistry.destroy(id);
-          }
-          s.closeWorkspace(s.activeWorkspaceId);
-        },
+        onConfirm: () => destroyWorkspace(activeWorkspaceId),
       });
       onClose();
       return;

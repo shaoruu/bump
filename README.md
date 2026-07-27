@@ -41,7 +41,7 @@ bump ls                           # list terminals + status (--json for machine 
 bump ps                           # list commands currently running
 bump watch [--terminal <id>]      # stream command start/finish events (jsonl with --json)
 bump ws                           # list workspaces and their panes
-bump run <cmd> [--new|--workspace <id>|--pane <id>]
+bump run <cmd> [--new [--name <n>] [--keep]|--workspace <id>|--pane <id>]
 bump run --wait <cmd> [--timeout 5m]   # block until done; exit with its exit code
 bump read <termId> [--lines N]    # print recent output
 bump write <termId> <text>        # write raw input (no newline)
@@ -49,12 +49,21 @@ bump close <termId>               # close a terminal
 bump split <paneId> [--dir h|v] [--cmd "..."]
 bump focus <paneId>
 bump close-pane <paneId> / bump close-others <paneId>
-bump ws-new [dir] / bump ws-switch <id> / bump ws-close <id> / bump ws-rename <id> <name>
+bump ws-new [dir] [--name <n>] [--keep] / bump ws-switch <id> / bump ws-close <id>
+bump ws-rename <id> <name> / bump ws-keep <id> / bump clean
 ```
 
 `--json` gives clean machine-readable output on any command; `--dev` (or
 `BUMP_DEV=1`) targets a dev build (`~/.bump-dev`). Run `bump help` for the full
 surface.
+
+Workspaces created through the CLI are **ephemeral** by default so agent-driven
+scratch work does not pile up as tabs: they show italic in the tab bar, are
+skipped by layout persistence (gone after a restart), and are closed
+automatically once every terminal in them has been idle for ~15 minutes (never
+while you are looking at them). `--keep`, `bump ws-keep`, or renaming the tab
+in the UI makes one permanent; `bump clean` sweeps idle ephemeral workspaces on
+demand.
 
 ### Job observability
 

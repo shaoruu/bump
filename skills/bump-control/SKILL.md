@@ -1,6 +1,6 @@
 ---
 name: bump-control
-description: Control the bump terminal app from the command line via the `bump` CLI - list and read terminals, run commands inside them, track whether commands are running or have succeeded/failed, and manage panes, workspaces, and layouts. Use when the user wants to inspect or drive bump's terminals, run a command inside bump (optionally blocking on its exit code with `bump run --wait`), see what is running (`bump ps`) or stream command start/finish events (`bump watch`), read a terminal's recent output, or split/arrange panes and create/switch/rename/close workspaces while bump is open.
+description: Control the bump terminal app from the command line via the `bump` CLI - list and read terminals, run commands inside them, track whether commands are running or have succeeded/failed, and manage panes, workspaces, and layouts. Workspaces you create are ephemeral by default and must be named. Use when the user wants to inspect or drive bump's terminals, run a command inside bump (optionally blocking on its exit code with `bump run --wait`), see what is running (`bump ps`) or stream command start/finish events (`bump watch`), read a terminal's recent output, or split/arrange panes and create/switch/rename/close workspaces while bump is open.
 ---
 
 # bump-control
@@ -28,9 +28,14 @@ server", or "make a new workspace for the api".
 1. **Check it is up:** run `bump status` first. Non-zero exit means bump is not
    running.
 2. **See the state:** `bump ls` for terminals, `bump ws` for workspaces/panes.
+   Do this before creating anything - prefer reusing a workspace you already
+   made over spawning another one.
 3. **Act:** `bump run` to run commands (`bump run --wait` to block on the exit
    code), `bump read` to inspect output, `bump ps` / `bump watch` to see what is
    running or stream results, and the pane/workspace commands to arrange the UI.
+4. **Stay tidy:** follow [Workspace etiquette](#workspace-etiquette) - name
+   what you create, group related terminals as panes of one workspace, and
+   close what you no longer need.
 
 Add `--json` to any command for machine-readable output that is easy to parse.
 IDs are stable strings: terminals look like `term-3`, panes like `a1b2c3`,
@@ -88,6 +93,7 @@ terminal in every pane:
       "id": "ws-uuid-1",
       "name": "api",
       "isActive": true,
+      "isEphemeral": false,
       "activePaneId": "a1b2c3",
       "paneTree": {
         "type": "split",
@@ -118,7 +124,10 @@ everything after them is the command line.
 - `bump run --pane a1b2c3 git status` - run in the terminal hosted by a pane.
 - `bump run --workspace ws-uuid-1 pnpm dev` - open a fresh terminal in that
   workspace and run it there.
-- `bump run --new htop` - open a fresh terminal in a new workspace and run it.
+- `bump run --new --name "api tests" npm test` - open a fresh terminal in a
+  new named workspace and run it. Always pass `--name` (without it the
+  workspace is named after the command). New workspaces are ephemeral unless
+  you add `--keep` - see [Workspace etiquette](#workspace-etiquette).
 
 `bump run --json --new "pnpm dev"` returns the created ids:
 
@@ -206,10 +215,42 @@ Panes:
 
 Workspaces:
 
-- `bump ws-new [dir]` - create a workspace, optionally in a directory.
+- `bump ws-new [dir] --name <name>` - create a workspace, optionally in a
+  directory. Always pass `--name`; without it the workspace is named after the
+  directory. Add `--keep` to make it permanent.
 - `bump ws-switch <workspaceId>` - switch to a workspace.
 - `bump ws-rename <workspaceId> <name>` - rename a workspace.
+- `bump ws-keep <workspaceId>` - make an ephemeral workspace permanent.
 - `bump ws-close <workspaceId>` - close a workspace (and its terminals).
+- `bump clean` - close every ephemeral workspace whose terminals are all idle.
+
+## Workspace etiquette
+
+Workspaces are the user's tab bar; every one you create takes space on their
+screen. Keep it organized:
+
+- **Reuse before creating.** Check `bump ws --json` first. If you already made
+  a workspace for this task, run further commands in it
+  (`bump run --workspace <id> ...`) instead of creating another one. One task,
+  one workspace.
+- **Group related terminals as panes, not workspaces.** A dev server plus its
+  test runner belong in one workspace as splits: create the workspace once,
+  then `bump split <paneId> --cmd "..."` inside it.
+- **Name everything you create.** `--name` on `ws-new` and `run --new` should
+  describe the task ("api tests", "release build"), so the user never sees a
+  tab they cannot place.
+- **Ephemeral by default is correct for agent work.** Workspaces created via
+  the CLI are marked ephemeral: they show italic in the tab bar, are not
+  restored after a restart, and are closed automatically once all their
+  terminals have been idle for ~15 minutes. For scratch work (builds, tests,
+  one-off checks) just let that happen.
+- **Keep only what the user will come back to.** If the user asks for
+  something durable (a dev server they will watch, a workspace they asked for
+  by name), pass `--keep` or run `bump ws-keep <id>`. Renaming a tab in the UI
+  also keeps it.
+- **Clean up after yourself.** When a task is done, `bump ws-close` the
+  workspaces you created (or `bump close-pane` for extra panes). `bump clean`
+  sweeps all idle ephemeral workspaces at once.
 
 ## Tips
 

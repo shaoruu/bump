@@ -10,6 +10,7 @@ import {
   getTerminalGitBranch,
   getAllTerminalLogPaths,
   getAllTerminalInfo,
+  getAllTerminalJobActivity,
 } from "./pty-manager.js";
 import { AgentSession } from "./agent-session.js";
 import { loadGhosttyThemes } from "./theme-loader.js";
@@ -63,6 +64,10 @@ export function setupIpcHandlers(
 
   ipcMain.handle("terminal:info", async () => {
     return getAllTerminalInfo();
+  });
+
+  ipcMain.handle("terminal:job-activity", async () => {
+    return getAllTerminalJobActivity();
   });
 
   ipcMain.handle("agent:start", async (_event, workspacePath: string) => {

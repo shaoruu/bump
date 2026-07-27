@@ -111,6 +111,7 @@ type workspaceData struct {
 	ID           string     `json:"id"`
 	Name         string     `json:"name"`
 	IsActive     bool       `json:"isActive"`
+	IsEphemeral  bool       `json:"isEphemeral"`
 	ActivePaneID string     `json:"activePaneId"`
 	PaneTree     paneNode   `json:"paneTree"`
 	Panes        []paneInfo `json:"panes"`
@@ -136,4 +137,9 @@ type mutationResult struct {
 	WorkspaceID string `json:"workspaceId"`
 	Command     string `json:"command"`
 	Closed      bool   `json:"closed"`
+}
+
+// cleanData is returned by POST /workspaces/clean.
+type cleanData struct {
+	ClosedWorkspaceIDs []string `json:"closedWorkspaceIds"`
 }

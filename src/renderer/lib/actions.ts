@@ -1,6 +1,7 @@
 import { useAppStore, collectLeafIds, findPaneInDirection } from "../store/appStore.js";
 import { terminalRegistry } from "../components/TerminalRegistry.js";
 import { pendingInputs } from "../components/PaneContainer.js";
+import { destroyWorkspace } from "./workspace-lifecycle.js";
 
 const BASE_FONT_SIZE = 13;
 const MIN_FONT_SIZE = 9;
@@ -184,13 +185,7 @@ export function registerCoreActions(
         const ws = workspaces.find((w) => w.id === activeWorkspaceId);
         openConfirm({
           title: `Close "${ws?.name ?? "workspace"}"?`,
-          onConfirm: () => {
-            const s = useAppStore.getState();
-            for (const [paneId] of s.panes) {
-              terminalRegistry.destroy(paneId);
-            }
-            s.closeWorkspace(s.activeWorkspaceId);
-          },
+          onConfirm: () => destroyWorkspace(activeWorkspaceId),
         });
         return;
       }
@@ -227,7 +222,7 @@ export function registerCoreActions(
     icon: "edit",
     category: "general",
     execute: () => {
-      const { activeWorkspaceId, workspaces, openPrompt, renameWorkspace } =
+      const { activeWorkspaceId, workspaces, openPrompt, renameWorkspace, keepWorkspace } =
         useAppStore.getState();
       const ws = workspaces.find((w) => w.id === activeWorkspaceId);
       if (!ws) return;
@@ -235,7 +230,11 @@ export function registerCoreActions(
         title: "Rename workspace",
         defaultValue: ws.name,
         submitLabel: "rename",
-        onSubmit: (name) => renameWorkspace(activeWorkspaceId, name),
+        onSubmit: (name) => {
+          // Naming a workspace claims it: it stops being ephemeral.
+          renameWorkspace(activeWorkspaceId, name);
+          keepWorkspace(activeWorkspaceId);
+        },
       });
     },
   });
@@ -252,13 +251,7 @@ export function registerCoreActions(
       const ws = state.workspaces.find((w) => w.id === state.activeWorkspaceId);
       state.openConfirm({
         title: `Close "${ws?.name ?? "workspace"}"?`,
-        onConfirm: () => {
-          const s = useAppStore.getState();
-          for (const [paneId] of s.panes) {
-            terminalRegistry.destroy(paneId);
-          }
-          s.closeWorkspace(s.activeWorkspaceId);
-        },
+        onConfirm: () => destroyWorkspace(state.activeWorkspaceId),
       });
     },
   });

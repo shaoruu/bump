@@ -121,6 +121,15 @@ export interface TerminalJobSummary {
   lastExitCode: number | null;
 }
 
+// Activity view used to decide whether an ephemeral workspace can be reaped:
+// when the terminal spawned and when its last command finished.
+export interface TerminalJobActivity {
+  id: string;
+  status: TerminalJobStatus;
+  endedAt: number | null;
+  createdAt: number;
+}
+
 export interface CommandStartEvent {
   type: "command_start";
   terminalId: string;
@@ -166,6 +175,7 @@ export interface ControlWorkspaceInfo {
   id: string;
   name: string;
   isActive: boolean;
+  isEphemeral: boolean;
   activePaneId: string;
   paneTree: ControlPaneNode;
   panes: ControlPaneInfo[];
@@ -181,6 +191,7 @@ export interface ControlBridgeParams {
   cwd?: string;
   command?: string;
   direction?: ControlSplitDirection;
+  isEphemeral?: boolean;
 }
 
 export interface ControlBridgeResult {
@@ -189,6 +200,7 @@ export interface ControlBridgeResult {
   paneId?: string;
   terminalId?: string | null;
   closed?: boolean;
+  closedWorkspaceIds?: string[];
 }
 
 export interface ControlRequestMessage {
@@ -219,6 +231,7 @@ export interface BumpAPI {
   onTerminalExit: (id: string, cb: (exitCode: number) => void) => () => void;
 
   getTerminalInfo: () => Promise<{ id: string; logPath: string; title: string }[]>;
+  getTerminalJobActivity: () => Promise<TerminalJobActivity[]>;
   onTerminalTitle: (id: string, cb: (title: string) => void) => () => void;
 
   getTerminalBuffer: (id: string) => Promise<string>;

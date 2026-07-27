@@ -11,9 +11,17 @@ import type {
 interface Workspace {
   id: string;
   name: string;
+  // Ephemeral workspaces (created by agents via the control server) are not
+  // persisted across restarts and are reaped once every terminal sits idle.
+  isEphemeral: boolean;
   panes: [string, Pane][];
   paneTree: PaneNode;
   activePaneId: string;
+}
+
+interface CreateWorkspaceOptions {
+  name?: string;
+  isEphemeral?: boolean;
 }
 
 interface Chat {
@@ -76,10 +84,11 @@ interface ConfirmDialogConfig {
 interface AppState {
   workspaces: Workspace[];
   activeWorkspaceId: string;
-  createWorkspace: (cwd?: string) => void;
+  createWorkspace: (cwd?: string, options?: CreateWorkspaceOptions) => void;
   switchWorkspace: (id: string) => void;
   closeWorkspace: (id: string) => void;
   renameWorkspace: (id: string, name: string) => void;
+  keepWorkspace: (id: string) => void;
   reorderWorkspaces: (ids: string[]) => void;
 
   promptDialog: PromptDialogConfig | null;
@@ -354,23 +363,32 @@ function makeWorkspacePaneId(): string {
   return generatePaneId();
 }
 
+function deriveWorkspaceName(cwd?: string, name?: string): string {
+  const explicit = name?.trim();
+  if (explicit) return explicit;
+  const basename = cwd?.split("/").filter(Boolean).pop();
+  return basename || "workspace";
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   workspaces: [{
     id: initialWorkspaceId,
     name: "workspace",
+    isEphemeral: false,
     panes: [[initialPaneId, { id: initialPaneId, terminalId: null }]],
     paneTree: { type: "leaf", paneId: initialPaneId },
     activePaneId: initialPaneId,
   }],
   activeWorkspaceId: initialWorkspaceId,
 
-  createWorkspace: (cwd?) => {
+  createWorkspace: (cwd?, options?) => {
     const state = get();
     const id = crypto.randomUUID();
     const paneId = makeWorkspacePaneId();
     const ws: Workspace = {
       id,
-      name: "workspace",
+      name: deriveWorkspaceName(cwd, options?.name),
+      isEphemeral: options?.isEphemeral ?? false,
       panes: [[paneId, { id: paneId, terminalId: null, initialCwd: cwd }]],
       paneTree: { type: "leaf", paneId },
       activePaneId: paneId,
@@ -432,6 +450,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       workspaces: state.workspaces.map((w) => (w.id === id ? { ...w, name } : w)),
     })),
 
+  keepWorkspace: (id) =>
+    set((state) => ({
+      workspaces: state.workspaces.map((w) =>
+        w.id === id ? { ...w, isEphemeral: false } : w
+      ),
+    })),
+
   reorderWorkspaces: (ids) =>
     set((state) => {
       const map = new Map(state.workspaces.map((w) => [w.id, w]));
@@ -470,6 +495,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const workspaces: Workspace[] = layout.workspaces.map((ws) => ({
       id: ws.id,
       name: ws.name,
+      isEphemeral: false,
       panes: ws.panes.map(([id, p]) => [id, toPane(p)] as [string, Pane]),
       paneTree: ws.paneTree,
       activePaneId: ws.activePaneId,

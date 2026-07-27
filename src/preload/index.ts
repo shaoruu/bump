@@ -40,6 +40,8 @@ const bump: BumpAPI = {
 
   getTerminalInfo: () => ipcRenderer.invoke("terminal:info"),
 
+  getTerminalJobActivity: () => ipcRenderer.invoke("terminal:job-activity"),
+
   onTerminalTitle: (id: string, cb: (title: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, title: string) => cb(title);
     ipcRenderer.on("terminal:title:" + id, handler);
